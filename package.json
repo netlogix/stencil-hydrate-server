@@ -1,0 +1,29 @@
+{
+  "name": "@netlogix/stencil-hydrate-server",
+  "version": "1.0.0",
+  "license": "MIT",
+  "description": "output target for stencil to generate server for hydrating components",
+  "main": "dist/output-target.js",
+  "scripts": {
+    "build": "tsc --build --clean && tsc --build",
+    "build:dev": "tsc --build --clean && tsc --build --watch",
+    "format": "prettier --write '**/*.ts'",
+    "version": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/netlogix/stencil-hydrate-server.git"
+  },
+  "dependencies": {
+    "@vercel/ncc": "^0.36"
+  },
+  "peerDependencies": {
+    "@stencil/core": "^3.2"
+  },
+  "devDependencies": {
+    "@stencil/core": "^3.2",
+    "@types/node": "^18.15",
+    "prettier": "^2.8.7",
+    "typescript": "^5.0"
+  }
+}
