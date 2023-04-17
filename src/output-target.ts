@@ -45,7 +45,7 @@ createServer(renderToString).listen(PORT, (error) => {
 });`
       )
 
-      const code = await ncc(join(buildDirPath, 'index.js'), {
+      const {code} = await ncc(join(buildDirPath, 'index.js'), {
         quiet: true,
         externals: ['http']
       })
