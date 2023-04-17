@@ -18,9 +18,9 @@ jobs:
       - name: Setup Node.js 18.x and set registry to GitHub Packages
         uses: actions/setup-node@v3
         with:
-          node-version-file: '${{ inputs.working-directory }}/.nvmrc'
+          node-version-file: '.nvmrc'
           cache: 'npm'
-          cache-dependency-path: '${{ inputs.working-directory }}/package-lock.json'
+          cache-dependency-path: 'package-lock.json'
           registry-url: 'https://npm.pkg.github.com'
 
       - name: Install dependencies

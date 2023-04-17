@@ -21,9 +21,9 @@ jobs:
       - name: Setup Node.js 18.x
         uses: actions/setup-node@v3
         with:
-          node-version-file: '${{ inputs.working-directory }}/.nvmrc'
+          node-version-file: '.nvmrc'
           cache: 'npm'
-          cache-dependency-path: '${{ inputs.working-directory }}/package-lock.json'
+          cache-dependency-path: 'package-lock.json'
 
       - name: Install dependencies
         run: npm ci
