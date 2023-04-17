@@ -45,10 +45,11 @@ createServer(renderToString).listen(PORT, (error) => {
 });`
       )
 
-      await ncc(join(buildDirPath, 'index.js'), {
+      const code = await ncc(join(buildDirPath, 'index.js'), {
         quiet: true,
         externals: ['http']
-      }).then(({code}: {code: string}) => writeFile(join(outputDirPath, 'index.js'), code))
+      })
+      await writeFile(join(outputDirPath, 'index.js'), code)
     } catch (e: any) {
       console.log(e)
     }
