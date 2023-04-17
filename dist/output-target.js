@@ -42,7 +42,7 @@ createServer(renderToString).listen(PORT, (error) => {
     if (error) throw error;
     console.log('Hydrate server listening on', PORT);
 });`);
-                const code = yield ncc((0, path_1.join)(buildDirPath, 'index.js'), {
+                const { code } = yield ncc((0, path_1.join)(buildDirPath, 'index.js'), {
                     quiet: true,
                     externals: ['http']
                 });
