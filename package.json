@@ -22,7 +22,7 @@
   },
   "devDependencies": {
     "@stencil/core": "^3.2",
-    "@types/node": "^18.15",
+    "@types/node": "^20.2",
     "prettier": "^2.8.7",
     "typescript": "^5.0"
   }
