@@ -1,0 +1,6 @@
+.github
+.gitattributes
+.nvmrc
+.prettierignore
+.prettierrc.json
+tsconfig.json
