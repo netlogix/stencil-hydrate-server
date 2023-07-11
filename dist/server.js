@@ -30,16 +30,11 @@ const createServer = (renderToString) => {
         try {
             const chunks = [];
             try {
-                for (_a = true, request_1 = __asyncValues(request); request_1_1 = yield request_1.next(), _b = request_1_1.done, !_b;) {
+                for (_a = true, request_1 = __asyncValues(request); request_1_1 = yield request_1.next(), _b = request_1_1.done, !_b; _a = true) {
                     _d = request_1_1.value;
                     _a = false;
-                    try {
-                        const chunk = _d;
-                        chunks.push(chunk);
-                    }
-                    finally {
-                        _a = true;
-                    }
+                    const chunk = _d;
+                    chunks.push(chunk);
                 }
             }
             catch (e_1_1) { e_1 = { error: e_1_1 }; }
