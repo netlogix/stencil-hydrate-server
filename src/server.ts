@@ -58,12 +58,12 @@ export const createServer = (
 
 const convertEsiIncludesToComments = (html: string) => {
   const includeRegex = /<esi:include\s+src="([^"]*)"\s*\/?>/g
-  const comment = '<!-- ESI include: $1 -->'
+  const comment = '<!-- ESI include: "$1" -->'
   return html.replace(includeRegex, comment)
 }
 
 const convertEsiCommentsToIncludes = (html: string) => {
-  const commentRegex = /<!-- ESI include: ([^"]*) -->/g
+  const commentRegex = /<!-- ESI include: "([^"]*)" -->/g
   const include = '<esi:include src="$1" />'
   return html.replace(commentRegex, include)
 }

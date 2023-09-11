@@ -30,11 +30,16 @@ const createServer = (renderToString) => {
         try {
             const chunks = [];
             try {
-                for (_a = true, request_1 = __asyncValues(request); request_1_1 = yield request_1.next(), _b = request_1_1.done, !_b; _a = true) {
+                for (_a = true, request_1 = __asyncValues(request); request_1_1 = yield request_1.next(), _b = request_1_1.done, !_b;) {
                     _d = request_1_1.value;
                     _a = false;
-                    const chunk = _d;
-                    chunks.push(chunk);
+                    try {
+                        const chunk = _d;
+                        chunks.push(chunk);
+                    }
+                    finally {
+                        _a = true;
+                    }
                 }
             }
             catch (e_1_1) { e_1 = { error: e_1_1 }; }
@@ -80,11 +85,11 @@ const createServer = (renderToString) => {
 exports.createServer = createServer;
 const convertEsiIncludesToComments = (html) => {
     const includeRegex = /<esi:include\s+src="([^"]*)"\s*\/?>/g;
-    const comment = '<!-- ESI include: $1 -->';
+    const comment = '<!-- ESI include: "$1" -->';
     return html.replace(includeRegex, comment);
 };
 const convertEsiCommentsToIncludes = (html) => {
-    const commentRegex = /<!-- ESI include: ([^"]*) -->/g;
+    const commentRegex = /<!-- ESI include: "([^"]*)" -->/g;
     const include = '<esi:include src="$1" />';
     return html.replace(commentRegex, include);
 };
