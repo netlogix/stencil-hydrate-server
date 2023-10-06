@@ -24,7 +24,7 @@ export const createServer = (
       const bodyWithoutEsiIncludes = convertEsiIncludesToComments(body)
 
       const results = await renderToString(bodyWithoutEsiIncludes, {
-        prettyHtml: true,
+        prettyHtml: false,
         url: url,
         beforeHydrate: (document: any) => {
           document.body.setAttribute('data-nlx-ssr-labels', JSON.stringify(labels))
