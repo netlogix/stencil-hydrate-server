@@ -48,7 +48,7 @@ const createServer = (renderToString) => {
             console.log(`Hydrating for ${url}`);
             const bodyWithoutEsiIncludes = convertEsiIncludesToComments(body);
             const results = yield renderToString(bodyWithoutEsiIncludes, {
-                prettyHtml: true,
+                prettyHtml: false,
                 url: url,
                 beforeHydrate: (document) => {
                     document.body.setAttribute('data-nlx-ssr-labels', JSON.stringify(labels));
