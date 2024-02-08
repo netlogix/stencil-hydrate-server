@@ -16,6 +16,9 @@
     "type": "git",
     "url": "https://github.com/netlogix/stencil-hydrate-server.git"
   },
+  "dependencies": {
+    "rollup": "^4.9.6"
+  },
   "peerDependencies": {
     "@stencil/core": "^4.0"
   },
@@ -28,7 +31,6 @@
     "@types/node": "^20.10",
     "concurrently": "^8.2.2",
     "prettier": "^3.0.0",
-    "rollup": "^4.9.6",
     "tslib": "^2.6.2",
     "typescript": "^5.1"
   },
