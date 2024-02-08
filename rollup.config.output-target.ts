@@ -14,6 +14,6 @@ export default {
     json(),
     commonjs(),
     resolve(),
-    typescript()
+    typescript({ tsconfig: './tsconfig.json' })
   ]
 }

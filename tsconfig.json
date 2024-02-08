@@ -11,7 +11,9 @@
     "noUncheckedIndexedAccess": true,
     "moduleResolution": "Bundler",
     "module": "ESNext",
-    "noEmit": true,
+    "declaration": true,
+    "declarationDir": "dist",
+    "rootDir": "./src",
     "lib": ["es2022"]
   }
 }
