@@ -2,6 +2,52 @@ import * as http from 'http'
 import {parseHtmlToDocument} from '@stencil/core/mock-doc'
 import type {HydrateResults, SerializeDocumentOptions} from '@stencil/core/internal'
 
+/**
+ * Based on https://github.com/csquared/node-logfmt/blob/master/lib/stringify.js with additions for nested objects
+ * from https://github.com/buptliuhs/node-logfmt/blob/support-nested-object/lib/stringify.js adjusted to be able
+ * to handle multidimensional nested objects/arrays and newline encoding.
+ */
+const logfmt = function(data: any, prefix: string = ''): string {
+  const line = []
+
+  for (const key in data) {
+    const outputKey = prefix
+      ? `${prefix}.${key}`
+      : key
+
+    let value = data[key]
+
+    if (typeof value === 'object' || Array.isArray(value)) {
+      line.push(logfmt(value, outputKey))
+      continue
+    }
+
+    const isNull = value === null || value === undefined
+
+    value = isNull ? '' : String(value)
+
+    const needsEscaping = value.includes('"') || value.includes('\\') || value.includes('\n')
+    const needsQuoting = needsEscaping || value.includes(' ') || value.includes('=')
+
+    if (needsEscaping) {
+      value = value.replace(/["\\]/g, '\\$&')
+      value = value.replace(/\n/g, '\\n')
+    }
+
+    if (needsQuoting) {
+      value = '"' + value + '"'
+    }
+
+    if (value === '' && !isNull) {
+      value = '""'
+    }
+
+    line.push(outputKey + '=' + value)
+  }
+
+  return line.join(' ')
+}
+
 export const createServer = (
   renderToString: (html: string | any, options?: SerializeDocumentOptions) => Promise<HydrateResults>
 ) => {
@@ -19,13 +65,12 @@ export const createServer = (
       }
       const {body, url, labels, settings} = JSON.parse(Buffer.concat(chunks).toString())
 
-      console.log(`Hydrating for ${url}`)
-
       const bodyWithoutEsiIncludes = convertEsiIncludesToComments(body)
 
       const results = await renderToString(bodyWithoutEsiIncludes, {
         prettyHtml: false,
         url: url,
+        runtimeLogging: true,
         beforeHydrate: (document: any) => {
           document.body.setAttribute('data-nlx-ssr-labels', JSON.stringify(labels))
           document.body.setAttribute('data-nlx-ssr-settings', JSON.stringify(settings))
@@ -36,9 +81,17 @@ export const createServer = (
         }
       })
 
+      console.log(logfmt({
+        time: new Date().toJSON(),
+        buildId: results?.buildId,
+        url: url,
+        status: results?.httpStatus,
+        diagnostics: results?.diagnostics
+      }))
+
       if (results.httpStatus !== 200) {
-        console.log(results)
-        throw new Error('Error occurred rendering page')
+        response.statusCode = 500
+        response.end('Hydration error')
       }
 
       const resultHtmlDocumentString = isCompleteHtmlDocument(bodyWithoutEsiIncludes)
@@ -49,7 +102,6 @@ export const createServer = (
       response.write(resultHtmlDocumentString)
       response.end()
     } catch (error) {
-      console.error('Error occurred handling', request.url, error)
       response.statusCode = 500
       response.end('Internal server error')
     }
