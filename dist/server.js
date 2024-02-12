@@ -1,27 +1,63 @@
-"use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
+'use strict';
+
+var http = require('http');
+var mockDoc = require('@stencil/core/mock-doc');
+
+function _interopNamespaceDefault(e) {
+    var n = Object.create(null);
+    if (e) {
+        Object.keys(e).forEach(function (k) {
+            if (k !== 'default') {
+                var d = Object.getOwnPropertyDescriptor(e, k);
+                Object.defineProperty(n, k, d.get ? d : {
+                    enumerable: true,
+                    get: function () { return e[k]; }
+                });
+            }
+        });
+    }
+    n.default = e;
+    return Object.freeze(n);
+}
+
+var http__namespace = /*#__PURE__*/_interopNamespaceDefault(http);
+
+/**
+ * Based on https://github.com/csquared/node-logfmt/blob/master/lib/stringify.js with additions for nested objects
+ * from https://github.com/buptliuhs/node-logfmt/blob/support-nested-object/lib/stringify.js adjusted to be able
+ * to handle multidimensional nested objects/arrays and newline encoding.
+ */
+const logfmt = function (data, prefix = '') {
+    const line = [];
+    for (const key in data) {
+        const outputKey = prefix
+            ? `${prefix}.${key}`
+            : key;
+        let value = data[key];
+        if (typeof value === 'object' || Array.isArray(value)) {
+            line.push(logfmt(value, outputKey));
+            continue;
+        }
+        const isNull = value === null || value === undefined;
+        value = isNull ? '' : String(value);
+        const needsEscaping = value.includes('"') || value.includes('\\') || value.includes('\n');
+        const needsQuoting = needsEscaping || value.includes(' ') || value.includes('=');
+        if (needsEscaping) {
+            value = value.replace(/["\\]/g, '\\$&');
+            value = value.replace(/\n/g, '\\n');
+        }
+        if (needsQuoting) {
+            value = '"' + value + '"';
+        }
+        if (value === '' && !isNull) {
+            value = '""';
+        }
+        line.push(outputKey + '=' + value);
+    }
+    return line.join(' ');
 };
-var __asyncValues = (this && this.__asyncValues) || function (o) {
-    if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
-    var m = o[Symbol.asyncIterator], i;
-    return m ? m.call(o) : (o = typeof __values === "function" ? __values(o) : o[Symbol.iterator](), i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function () { return this; }, i);
-    function verb(n) { i[n] = o[n] && function (v) { return new Promise(function (resolve, reject) { v = o[n](v), settle(resolve, reject, v.done, v.value); }); }; }
-    function settle(resolve, reject, d, v) { Promise.resolve(v).then(function(v) { resolve({ value: v, done: d }); }, reject); }
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.createServer = void 0;
-const http = require("http");
-const mock_doc_1 = require("@stencil/core/mock-doc");
 const createServer = (renderToString) => {
-    return http.createServer((request, response) => { var _a, request_1, request_1_1; return __awaiter(void 0, void 0, void 0, function* () {
-        var _b, e_1, _c, _d;
+    return http__namespace.createServer(async (request, response) => {
         if (request.method !== 'POST') {
             response.statusCode = 405;
             response.end('Method not allowed');
@@ -29,27 +65,15 @@ const createServer = (renderToString) => {
         }
         try {
             const chunks = [];
-            try {
-                for (_a = true, request_1 = __asyncValues(request); request_1_1 = yield request_1.next(), _b = request_1_1.done, !_b; _a = true) {
-                    _d = request_1_1.value;
-                    _a = false;
-                    const chunk = _d;
-                    chunks.push(chunk);
-                }
-            }
-            catch (e_1_1) { e_1 = { error: e_1_1 }; }
-            finally {
-                try {
-                    if (!_a && !_b && (_c = request_1.return)) yield _c.call(request_1);
-                }
-                finally { if (e_1) throw e_1.error; }
+            for await (const chunk of request) {
+                chunks.push(chunk);
             }
             const { body, url, labels, settings } = JSON.parse(Buffer.concat(chunks).toString());
-            console.log(`Hydrating for ${url}`);
             const bodyWithoutEsiIncludes = convertEsiIncludesToComments(body);
-            const results = yield renderToString(bodyWithoutEsiIncludes, {
+            const results = await renderToString(bodyWithoutEsiIncludes, {
                 prettyHtml: false,
                 url: url,
+                runtimeLogging: true,
                 beforeHydrate: (document) => {
                     document.body.setAttribute('data-nlx-ssr-labels', JSON.stringify(labels));
                     document.body.setAttribute('data-nlx-ssr-settings', JSON.stringify(settings));
@@ -59,9 +83,16 @@ const createServer = (renderToString) => {
                     document.body.removeAttribute('data-nlx-ssr-settings');
                 }
             });
+            console.log(logfmt({
+                time: new Date().toJSON(),
+                buildId: results?.buildId,
+                url: url,
+                status: results?.httpStatus,
+                diagnostics: results?.diagnostics
+            }));
             if (results.httpStatus !== 200) {
-                console.log(results);
-                throw new Error('Error occurred rendering page');
+                response.statusCode = 500;
+                response.end('Hydration error');
             }
             const resultHtmlDocumentString = isCompleteHtmlDocument(bodyWithoutEsiIncludes)
                 ? convertEsiCommentsToIncludes(results.html)
@@ -71,13 +102,11 @@ const createServer = (renderToString) => {
             response.end();
         }
         catch (error) {
-            console.error('Error occurred handling', request.url, error);
             response.statusCode = 500;
             response.end('Internal server error');
         }
-    }); });
+    });
 };
-exports.createServer = createServer;
 const convertEsiIncludesToComments = (html) => {
     const includeRegex = /<esi:include\s+src="([^"]*)"\s*\/?>/g;
     const comment = '<!-- ESI include: "$1" -->';
@@ -92,10 +121,10 @@ const isCompleteHtmlDocument = (html) => {
     return /<html\b[^>]*>/i.test(html) && /<head\b[^>]*>/i.test(html) && /<body\b[^>]*>/i.test(html);
 };
 const hasMetaCharsetTag = (html) => {
-    return (0, mock_doc_1.parseHtmlToDocument)(html).querySelector('meta[charset]') !== null;
+    return mockDoc.parseHtmlToDocument(html).querySelector('meta[charset]') !== null;
 };
 const extractFragments = (html, removeMetaCharsetTag) => {
-    const document = (0, mock_doc_1.parseHtmlToDocument)(html);
+    const document = mockDoc.parseHtmlToDocument(html);
     if (removeMetaCharsetTag) {
         const metaCharset = document.querySelector('meta[charset="utf-8"]');
         if (metaCharset) {
@@ -106,3 +135,5 @@ const extractFragments = (html, removeMetaCharsetTag) => {
     const body = document.querySelector('body') ? document.querySelector('body').toString() : '';
     return head + body;
 };
+
+exports.createServer = createServer;

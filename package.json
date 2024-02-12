@@ -1,12 +1,14 @@
 {
   "name": "@netlogix/stencil-hydrate-server",
-  "version": "1.1.2",
+  "version": "1.2.0",
   "license": "MIT",
   "description": "output target for stencil to generate server for hydrating components",
   "main": "dist/output-target.js",
   "scripts": {
-    "build": "tsc --build --clean && tsc --build",
-    "build:dev": "tsc --build --clean && tsc --build --watch",
+    "build": "concurrently \"npm:build:output-target\" \"npm:build:server\"",
+    "build:output-target": "rollup --config rollup.config.output-target.ts --configPlugin typescript",
+    "build:server": "rollup --config rollup.config.server.ts --configPlugin typescript",
+    "build:dev": "rollup -c -w",
     "format": "prettier --write '**/*.ts'",
     "version": "npm run build"
   },
@@ -15,15 +17,25 @@
     "url": "https://github.com/netlogix/stencil-hydrate-server.git"
   },
   "dependencies": {
-    "@vercel/ncc": "^0.38"
+    "rollup": "^4.9.6"
   },
   "peerDependencies": {
     "@stencil/core": "^4.0"
   },
   "devDependencies": {
+    "@rollup/plugin-commonjs": "^25.0.7",
+    "@rollup/plugin-json": "^6.1.0",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-typescript": "^11.1.6",
     "@stencil/core": "^4.0",
     "@types/node": "^20.10",
+    "concurrently": "^8.2.2",
     "prettier": "^3.0.0",
+    "tslib": "^2.6.2",
     "typescript": "^5.1"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
   }
 }

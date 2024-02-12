@@ -1,13 +1,19 @@
 {
   "compilerOptions": {
-    "target": "es2015",
-    "module": "commonjs",
-    "outDir": "./dist",
-    "rootDir": "./src",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "target": "es2022",
+    "allowJs": true,
+    "resolveJsonModule": true,
+    "moduleDetection": "force",
+    "isolatedModules": true,
     "strict": true,
-    "noImplicitAny": true
-  },
-  "exclude": [
-    "node_modules"
-  ]
+    "noUncheckedIndexedAccess": true,
+    "moduleResolution": "Bundler",
+    "module": "ESNext",
+    "declaration": true,
+    "declarationDir": "dist",
+    "rootDir": "./src",
+    "lib": ["es2022"]
+  }
 }

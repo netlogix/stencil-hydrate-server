@@ -2,9 +2,9 @@ import type {Config} from '@stencil/core'
 import type {BuildCtx, CompilerCtx, OutputTargetCustom} from '@stencil/core/internal'
 import {copyFile, writeFile, mkdir} from 'fs/promises'
 import {join} from 'path'
-
-// @ts-expect-error: No type declarations available.
-import * as ncc from '@vercel/ncc'
+import { rollup, RollupOptions } from 'rollup';
+import resolve from '@rollup/plugin-node-resolve';
+import commonjs from '@rollup/plugin-commonjs';
 
 export const hydrateServerOutputTarget = (outputTarget: any): OutputTargetCustom => ({
   type: 'custom',
@@ -45,11 +45,25 @@ createServer(renderToString).listen(PORT, (error) => {
 });`
       )
 
-      const {code} = await ncc(join(buildDirPath, 'index.js'), {
-        quiet: true,
-        externals: ['http']
-      })
-      await writeFile(join(outputDirPath, 'index.js'), code)
+      const rollupOptions: RollupOptions = {
+        input: join(buildDirPath, 'index.js'),
+        treeshake: false,
+        plugins: [
+          commonjs(),
+          resolve(),
+        ],
+      };
+
+      const rollupBuild = await rollup(rollupOptions);
+
+      const outputFilePath = join(outputDirPath, 'index.js');
+
+      const rollupOutput = await rollupBuild.generate({
+        file: outputFilePath,
+        format: 'cjs',
+      });
+
+      await compilerCtx.fs.writeFile(outputFilePath, rollupOutput.output[0].code, { immediateWrite: true });
     } catch (e: any) {
       console.log(e)
     }
