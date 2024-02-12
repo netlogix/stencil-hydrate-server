@@ -458,7 +458,7 @@ var call = Function.prototype.call;
 var $hasOwn = Object.prototype.hasOwnProperty;
 var bind = functionBind;
 
-/** @type {(o: {}, p: PropertyKey) => p is keyof o} */
+/** @type {import('.')} */
 var hasown = bind.call(call, $hasOwn);
 
 var assert$1 = true;
