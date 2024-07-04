@@ -95,8 +95,8 @@ export const createServer = (
       }
 
       const resultHtmlDocumentString = isCompleteHtmlDocument(bodyWithoutEsiIncludes)
-        ? convertEsiCommentsToIncludes(results.html)
-        : convertEsiCommentsToIncludes(extractFragments(results.html, !hasMetaCharsetTag(bodyWithoutEsiIncludes)))
+        ? convertEsiCommentsToIncludes(results.html ?? '')
+        : convertEsiCommentsToIncludes(extractFragments(results.html ?? '', !hasMetaCharsetTag(bodyWithoutEsiIncludes)))
 
       response.writeHead(200, {'Content-Type': 'text/html'})
       response.write(resultHtmlDocumentString)
