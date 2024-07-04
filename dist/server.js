@@ -95,8 +95,8 @@ const createServer = (renderToString) => {
                 response.end('Hydration error');
             }
             const resultHtmlDocumentString = isCompleteHtmlDocument(bodyWithoutEsiIncludes)
-                ? convertEsiCommentsToIncludes(results.html)
-                : convertEsiCommentsToIncludes(extractFragments(results.html, !hasMetaCharsetTag(bodyWithoutEsiIncludes)));
+                ? convertEsiCommentsToIncludes(results.html ?? '')
+                : convertEsiCommentsToIncludes(extractFragments(results.html ?? '', !hasMetaCharsetTag(bodyWithoutEsiIncludes)));
             response.writeHead(200, { 'Content-Type': 'text/html' });
             response.write(resultHtmlDocumentString);
             response.end();
