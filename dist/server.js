@@ -106,18 +106,14 @@ const createServer = (renderToString) => {
     });
 };
 const convertHtmlSpecialitiesToComments = (html) => {
-    const replacements = [
-        { regex: /<esi:include\s+src="([^"]*)"\s*\/?>/g, replacement: '<!-- ESI include: "$1" -->' },
-        { regex: /&nbsp;/g, replacement: '<!-- nlx-ssr-nbsp -->' }
-    ];
-    return replacements.reduce((acc, { regex, replacement }) => acc.replace(regex, replacement), html);
+    return html
+        .replace(/<esi:include\s+src="([^"]*)"\s*\/?>/g, '<!-- ESI include: "$1" -->')
+        .replace(/&nbsp;/g, '<!-- nlx-ssr-nbsp -->');
 };
 const convertCommentsToHtmlSpecialities = (html) => {
-    const replacements = [
-        { regex: /<!-- ESI include: "([^"]*)" -->/g, replacement: '<esi:include src="$1" />' },
-        { regex: /<!-- nlx-ssr-nbsp -->/g, replacement: '&nbsp;' }
-    ];
-    return replacements.reduce((acc, { regex, replacement }) => acc.replace(regex, replacement), html);
+    return html
+        .replace(/<!-- ESI include: "([^"]*)" -->/g, '<esi:include src="$1" />')
+        .replace(/<!-- nlx-ssr-nbsp -->/g, '&nbsp;');
 };
 const isCompleteHtmlDocument = (html) => {
     return /<html\b[^>]*>/i.test(html) && /<head\b[^>]*>/i.test(html) && /<body\b[^>]*>/i.test(html);
