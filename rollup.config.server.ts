@@ -1,6 +1,6 @@
 import typescript from '@rollup/plugin-typescript'
 import commonjs from '@rollup/plugin-commonjs'
-import resolve from '@rollup/plugin-node-resolve';
+import resolve from '@rollup/plugin-node-resolve'
 
 export default {
   input: ['src/server.ts'],
@@ -9,9 +9,5 @@ export default {
     format: 'cjs'
   },
   external: ['@stencil/core/mock-doc', '@stencil/core/internal'],
-  plugins: [
-    commonjs(),
-    resolve(),
-    typescript({ tsconfig: './tsconfig.json' })
-  ]
+  plugins: [commonjs(), resolve(), typescript({tsconfig: './tsconfig.json'})]
 }
