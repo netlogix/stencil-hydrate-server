@@ -17397,16 +17397,13 @@ createServer(renderToString).listen(PORT, (error) => {
             const rollupOptions = {
                 input: require$$0$2.join(buildDirPath, 'index.js'),
                 treeshake: false,
-                plugins: [
-                    commonjs(),
-                    nodeResolve(),
-                ],
+                plugins: [commonjs(), nodeResolve()]
             };
             const rollupBuild = await rollup.rollup(rollupOptions);
             const outputFilePath = require$$0$2.join(outputDirPath, 'index.js');
             const rollupOutput = await rollupBuild.generate({
                 file: outputFilePath,
-                format: 'cjs',
+                format: 'cjs'
             });
             await compilerCtx.fs.writeFile(outputFilePath, rollupOutput.output[0].code, { immediateWrite: true });
         }
