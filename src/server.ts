@@ -109,21 +109,15 @@ export const createServer = (
 }
 
 const convertHtmlSpecialitiesToComments = (html: string) => {
-  const replacements = [
-    {regex: /<esi:include\s+src="([^"]*)"\s*\/?>/g, replacement: '<!-- ESI include: "$1" -->'},
-    {regex: /&nbsp;/g, replacement: '<!-- nlx-ssr-nbsp -->'}
-  ]
-
-  return replacements.reduce((acc, {regex, replacement}) => acc.replace(regex, replacement), html)
+  return html
+    .replace(/<esi:include\s+src="([^"]*)"\s*\/?>/g, '<!-- ESI include: "$1" -->')
+    .replace(/&nbsp;/g, '<!-- nlx-ssr-nbsp -->')
 }
 
 const convertCommentsToHtmlSpecialities = (html: string) => {
-  const replacements = [
-    {regex: /<!-- ESI include: "([^"]*)" -->/g, replacement: '<esi:include src="$1" />'},
-    {regex: /<!-- nlx-ssr-nbsp -->/g, replacement: '&nbsp;'}
-  ]
-
-  return replacements.reduce((acc, {regex, replacement}) => acc.replace(regex, replacement), html)
+  return html
+    .replace(/<!-- ESI include: "([^"]*)" -->/g, '<esi:include src="$1" />')
+    .replace(/<!-- nlx-ssr-nbsp -->/g, '&nbsp;')
 }
 
 const isCompleteHtmlDocument = (html: string) => {
