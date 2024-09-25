@@ -106,30 +106,18 @@ const createServer = (renderToString) => {
     });
 };
 const convertHtmlSpecialitiesToComments = (html) => {
-    return convertNonBreakingSpacesToComments(convertEsiIncludesToComments(html));
+    const replacements = [
+        { regex: /<esi:include\s+src="([^"]*)"\s*\/?>/g, replacement: '<!-- ESI include: "$1" -->' },
+        { regex: /&nbsp;/g, replacement: '<!-- nlx-ssr-nbsp -->' }
+    ];
+    return replacements.reduce((acc, { regex, replacement }) => acc.replace(regex, replacement), html);
 };
 const convertCommentsToHtmlSpecialities = (html) => {
-    return convertCommentsToNonBreakingSpaces(convertEsiCommentsToIncludes(html));
-};
-const convertEsiIncludesToComments = (html) => {
-    const includeRegex = /<esi:include\s+src="([^"]*)"\s*\/?>/g;
-    const comment = '<!-- ESI include: "$1" -->';
-    return html.replace(includeRegex, comment);
-};
-const convertEsiCommentsToIncludes = (html) => {
-    const commentRegex = /<!-- ESI include: "([^"]*)" -->/g;
-    const include = '<esi:include src="$1" />';
-    return html.replace(commentRegex, include);
-};
-const convertNonBreakingSpacesToComments = (html) => {
-    const nbspRegex = /&nbsp;/g;
-    const comment = '<!-- nlx-ssr-nbsp -->';
-    return html.replace(nbspRegex, comment);
-};
-const convertCommentsToNonBreakingSpaces = (html) => {
-    const commentRegex = /<!-- nlx-ssr-nbsp -->/g;
-    const nbsp = '&nbsp;';
-    return html.replace(commentRegex, nbsp);
+    const replacements = [
+        { regex: /<!-- ESI include: "([^"]*)" -->/g, replacement: '<esi:include src="$1" />' },
+        { regex: /<!-- nlx-ssr-nbsp -->/g, replacement: '&nbsp;' }
+    ];
+    return replacements.reduce((acc, { regex, replacement }) => acc.replace(regex, replacement), html);
 };
 const isCompleteHtmlDocument = (html) => {
     return /<html\b[^>]*>/i.test(html) && /<head\b[^>]*>/i.test(html) && /<body\b[^>]*>/i.test(html);
