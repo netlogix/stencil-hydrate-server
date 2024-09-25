@@ -7,13 +7,11 @@ import type {HydrateResults, SerializeDocumentOptions} from '@stencil/core/inter
  * from https://github.com/buptliuhs/node-logfmt/blob/support-nested-object/lib/stringify.js adjusted to be able
  * to handle multidimensional nested objects/arrays and newline encoding.
  */
-const logfmt = function(data: any, prefix: string = ''): string {
+const logfmt = function (data: any, prefix: string = ''): string {
   const line = []
 
   for (const key in data) {
-    const outputKey = prefix
-      ? `${prefix}.${key}`
-      : key
+    const outputKey = prefix ? `${prefix}.${key}` : key
 
     let value = data[key]
 
@@ -65,9 +63,9 @@ export const createServer = (
       }
       const {body, url, labels, settings} = JSON.parse(Buffer.concat(chunks).toString())
 
-      const bodyWithoutEsiIncludes = convertEsiIncludesToComments(body)
+      const convertedBody = convertHtmlSpecialitiesToComments(body)
 
-      const results = await renderToString(bodyWithoutEsiIncludes, {
+      const results = await renderToString(convertedBody, {
         prettyHtml: false,
         url: url,
         runtimeLogging: true,
@@ -81,22 +79,24 @@ export const createServer = (
         }
       })
 
-      console.log(logfmt({
-        time: new Date().toJSON(),
-        buildId: results?.buildId,
-        url: url,
-        status: results?.httpStatus,
-        diagnostics: results?.diagnostics
-      }))
+      console.log(
+        logfmt({
+          time: new Date().toJSON(),
+          buildId: results?.buildId,
+          url: url,
+          status: results?.httpStatus,
+          diagnostics: results?.diagnostics
+        })
+      )
 
       if (results.httpStatus !== 200) {
         response.statusCode = 500
         response.end('Hydration error')
       }
 
-      const resultHtmlDocumentString = isCompleteHtmlDocument(bodyWithoutEsiIncludes)
-        ? convertEsiCommentsToIncludes(results.html ?? '')
-        : convertEsiCommentsToIncludes(extractFragments(results.html ?? '', !hasMetaCharsetTag(bodyWithoutEsiIncludes)))
+      const resultHtmlDocumentString = isCompleteHtmlDocument(convertedBody)
+        ? convertCommentsToHtmlSpecialities(results.html ?? '')
+        : convertCommentsToHtmlSpecialities(extractFragments(results.html ?? '', !hasMetaCharsetTag(convertedBody)))
 
       response.writeHead(200, {'Content-Type': 'text/html'})
       response.write(resultHtmlDocumentString)
@@ -106,6 +106,14 @@ export const createServer = (
       response.end('Internal server error')
     }
   })
+}
+
+const convertHtmlSpecialitiesToComments = (html: string) => {
+  return convertNonBreakingSpacesToComments(convertEsiIncludesToComments(html))
+}
+
+const convertCommentsToHtmlSpecialities = (html: string) => {
+  return convertCommentsToNonBreakingSpaces(convertEsiCommentsToIncludes(html))
 }
 
 const convertEsiIncludesToComments = (html: string) => {
@@ -118,6 +126,18 @@ const convertEsiCommentsToIncludes = (html: string) => {
   const commentRegex = /<!-- ESI include: "([^"]*)" -->/g
   const include = '<esi:include src="$1" />'
   return html.replace(commentRegex, include)
+}
+
+const convertNonBreakingSpacesToComments = (html: string) => {
+  const nbspRegex = /&nbsp;/g
+  const comment = '<!-- nlx-ssr-nbsp -->'
+  return html.replace(nbspRegex, comment)
+}
+
+const convertCommentsToNonBreakingSpaces = (html: string) => {
+  const commentRegex = /<!-- nlx-ssr-nbsp -->/g
+  const nbsp = '&nbsp;'
+  return html.replace(commentRegex, nbsp)
 }
 
 const isCompleteHtmlDocument = (html: string) => {
