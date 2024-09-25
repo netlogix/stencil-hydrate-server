@@ -2,9 +2,9 @@ import type {Config} from '@stencil/core'
 import type {BuildCtx, CompilerCtx, OutputTargetCustom} from '@stencil/core/internal'
 import {copyFile, writeFile, mkdir} from 'fs/promises'
 import {join} from 'path'
-import { rollup, RollupOptions } from 'rollup';
-import resolve from '@rollup/plugin-node-resolve';
-import commonjs from '@rollup/plugin-commonjs';
+import {rollup, RollupOptions} from 'rollup'
+import resolve from '@rollup/plugin-node-resolve'
+import commonjs from '@rollup/plugin-commonjs'
 
 export const hydrateServerOutputTarget = (outputTarget: any): OutputTargetCustom => ({
   type: 'custom',
@@ -48,22 +48,19 @@ createServer(renderToString).listen(PORT, (error) => {
       const rollupOptions: RollupOptions = {
         input: join(buildDirPath, 'index.js'),
         treeshake: false,
-        plugins: [
-          commonjs(),
-          resolve(),
-        ],
-      };
+        plugins: [commonjs(), resolve()]
+      }
 
-      const rollupBuild = await rollup(rollupOptions);
+      const rollupBuild = await rollup(rollupOptions)
 
-      const outputFilePath = join(outputDirPath, 'index.js');
+      const outputFilePath = join(outputDirPath, 'index.js')
 
       const rollupOutput = await rollupBuild.generate({
         file: outputFilePath,
-        format: 'cjs',
-      });
+        format: 'cjs'
+      })
 
-      await compilerCtx.fs.writeFile(outputFilePath, rollupOutput.output[0].code, { immediateWrite: true });
+      await compilerCtx.fs.writeFile(outputFilePath, rollupOutput.output[0].code, {immediateWrite: true})
     } catch (e: any) {
       console.log(e)
     }

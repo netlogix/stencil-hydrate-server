@@ -30,9 +30,7 @@ var http__namespace = /*#__PURE__*/_interopNamespaceDefault(http);
 const logfmt = function (data, prefix = '') {
     const line = [];
     for (const key in data) {
-        const outputKey = prefix
-            ? `${prefix}.${key}`
-            : key;
+        const outputKey = prefix ? `${prefix}.${key}` : key;
         let value = data[key];
         if (typeof value === 'object' || Array.isArray(value)) {
             line.push(logfmt(value, outputKey));
@@ -69,8 +67,8 @@ const createServer = (renderToString) => {
                 chunks.push(chunk);
             }
             const { body, url, labels, settings } = JSON.parse(Buffer.concat(chunks).toString());
-            const bodyWithoutEsiIncludes = convertEsiIncludesToComments(body);
-            const results = await renderToString(bodyWithoutEsiIncludes, {
+            const convertedBody = convertHtmlSpecialitiesToComments(body);
+            const results = await renderToString(convertedBody, {
                 prettyHtml: false,
                 url: url,
                 runtimeLogging: true,
@@ -94,9 +92,9 @@ const createServer = (renderToString) => {
                 response.statusCode = 500;
                 response.end('Hydration error');
             }
-            const resultHtmlDocumentString = isCompleteHtmlDocument(bodyWithoutEsiIncludes)
-                ? convertEsiCommentsToIncludes(results.html ?? '')
-                : convertEsiCommentsToIncludes(extractFragments(results.html ?? '', !hasMetaCharsetTag(bodyWithoutEsiIncludes)));
+            const resultHtmlDocumentString = isCompleteHtmlDocument(convertedBody)
+                ? convertCommentsToHtmlSpecialities(results.html ?? '')
+                : convertCommentsToHtmlSpecialities(extractFragments(results.html ?? '', !hasMetaCharsetTag(convertedBody)));
             response.writeHead(200, { 'Content-Type': 'text/html' });
             response.write(resultHtmlDocumentString);
             response.end();
@@ -107,15 +105,15 @@ const createServer = (renderToString) => {
         }
     });
 };
-const convertEsiIncludesToComments = (html) => {
-    const includeRegex = /<esi:include\s+src="([^"]*)"\s*\/?>/g;
-    const comment = '<!-- ESI include: "$1" -->';
-    return html.replace(includeRegex, comment);
+const convertHtmlSpecialitiesToComments = (html) => {
+    return html
+        .replace(/<esi:include\s+src="([^"]*)"\s*\/?>/g, '<!-- ESI include: "$1" -->')
+        .replace(/&nbsp;/g, '<!-- nlx-ssr-nbsp -->');
 };
-const convertEsiCommentsToIncludes = (html) => {
-    const commentRegex = /<!-- ESI include: "([^"]*)" -->/g;
-    const include = '<esi:include src="$1" />';
-    return html.replace(commentRegex, include);
+const convertCommentsToHtmlSpecialities = (html) => {
+    return html
+        .replace(/<!-- ESI include: "([^"]*)" -->/g, '<esi:include src="$1" />')
+        .replace(/<!-- nlx-ssr-nbsp -->/g, '&nbsp;');
 };
 const isCompleteHtmlDocument = (html) => {
     return /<html\b[^>]*>/i.test(html) && /<head\b[^>]*>/i.test(html) && /<body\b[^>]*>/i.test(html);
