@@ -109,35 +109,21 @@ export const createServer = (
 }
 
 const convertHtmlSpecialitiesToComments = (html: string) => {
-  return convertNonBreakingSpacesToComments(convertEsiIncludesToComments(html))
+  const replacements = [
+    {regex: /<esi:include\s+src="([^"]*)"\s*\/?>/g, replacement: '<!-- ESI include: "$1" -->'},
+    {regex: /&nbsp;/g, replacement: '<!-- nlx-ssr-nbsp -->'}
+  ]
+
+  return replacements.reduce((acc, {regex, replacement}) => acc.replace(regex, replacement), html)
 }
 
 const convertCommentsToHtmlSpecialities = (html: string) => {
-  return convertCommentsToNonBreakingSpaces(convertEsiCommentsToIncludes(html))
-}
+  const replacements = [
+    {regex: /<!-- ESI include: "([^"]*)" -->/g, replacement: '<esi:include src="$1" />'},
+    {regex: /<!-- nlx-ssr-nbsp -->/g, replacement: '&nbsp;'}
+  ]
 
-const convertEsiIncludesToComments = (html: string) => {
-  const includeRegex = /<esi:include\s+src="([^"]*)"\s*\/?>/g
-  const comment = '<!-- ESI include: "$1" -->'
-  return html.replace(includeRegex, comment)
-}
-
-const convertEsiCommentsToIncludes = (html: string) => {
-  const commentRegex = /<!-- ESI include: "([^"]*)" -->/g
-  const include = '<esi:include src="$1" />'
-  return html.replace(commentRegex, include)
-}
-
-const convertNonBreakingSpacesToComments = (html: string) => {
-  const nbspRegex = /&nbsp;/g
-  const comment = '<!-- nlx-ssr-nbsp -->'
-  return html.replace(nbspRegex, comment)
-}
-
-const convertCommentsToNonBreakingSpaces = (html: string) => {
-  const commentRegex = /<!-- nlx-ssr-nbsp -->/g
-  const nbsp = '&nbsp;'
-  return html.replace(commentRegex, nbsp)
+  return replacements.reduce((acc, {regex, replacement}) => acc.replace(regex, replacement), html)
 }
 
 const isCompleteHtmlDocument = (html: string) => {
