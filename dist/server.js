@@ -58,7 +58,7 @@ const createServer = (renderToString) => {
     return http__namespace.createServer(async (request, response) => {
         if (request.method !== 'POST') {
             response.statusCode = 405;
-            response.end('Method not allowed');
+            response.end();
             return;
         }
         try {
@@ -90,7 +90,9 @@ const createServer = (renderToString) => {
             }));
             if (results.httpStatus !== 200) {
                 response.statusCode = 500;
-                response.end('Hydration error');
+                response.statusMessage = 'Hydration error';
+                response.end();
+                return;
             }
             const resultHtmlDocumentString = isCompleteHtmlDocument(convertedBody)
                 ? convertCommentsToHtmlSpecialities(results.html ?? '')
@@ -101,7 +103,7 @@ const createServer = (renderToString) => {
         }
         catch (error) {
             response.statusCode = 500;
-            response.end('Internal server error');
+            response.end();
         }
     });
 };
