@@ -52,7 +52,7 @@ export const createServer = (
   return http.createServer(async (request, response) => {
     if (request.method !== 'POST') {
       response.statusCode = 405
-      response.end('Method not allowed')
+      response.end()
       return
     }
 
@@ -91,7 +91,9 @@ export const createServer = (
 
       if (results.httpStatus !== 200) {
         response.statusCode = 500
-        response.end('Hydration error')
+        response.statusMessage = 'Hydration error'
+        response.end()
+        return
       }
 
       const resultHtmlDocumentString = isCompleteHtmlDocument(convertedBody)
@@ -103,7 +105,7 @@ export const createServer = (
       response.end()
     } catch (error) {
       response.statusCode = 500
-      response.end('Internal server error')
+      response.end()
     }
   })
 }
