@@ -4600,7 +4600,7 @@ const makeLegalIdentifier = function makeLegalIdentifier(str) {
     return identifier || '_';
 };
 
-var version$1 = "15.3.0";
+var version$1 = "16.0.3";
 var peerDependencies$1 = {
 	rollup: "^2.78.0||^3.0.0||^4.0.0"
 };
@@ -5375,9 +5375,18 @@ async function resolveWithExportMap({
       importer,
       moduleDirs: moduleDirectories,
       conditions: exportConditions,
+      // Resolve targets of "imports" mappings using the same algorithm
+      // we use for normal specifiers: try export maps first and then
+      // fall back to classic resolution. This is important for cases
+      // like "#foo/*": "@scope/pkg/*" where the target package relies
+      // on "exports" to expose subpaths. Using the classic resolver
+      // alone would fail to find those subpaths.
       resolveId(id /* , parent*/) {
-        return resolveIdClassic({
-          importSpecifier: id,
+        return resolveImportSpecifiers({
+          importer,
+          importSpecifierList: [id],
+          exportConditions,
+          // pass-through of the rest of the context
           packageInfoCache,
           extensions,
           mainFields,
@@ -5385,11 +5394,22 @@ async function resolveWithExportMap({
           useBrowserOverrides,
           baseDir,
           moduleDirectories,
-          modulePaths
+          modulePaths,
+          rootDir,
+          ignoreSideEffectsForRoot,
+          allowExportsFolderMapping
         });
       }
     });
 
+    if (resolveResult == null) {
+      // When the target of an "imports" mapping cannot be resolved,
+      // surface a proper resolve error instead of throwing from
+      // fileURLToPath(null).
+      throw new ResolveError(
+        `Could not resolve import "${importSpecifier}" in ${importer} using imports.`
+      );
+    }
     const location = url$2.fileURLToPath(resolveResult);
     return {
       location: preserveSymlinks ? location : await resolveSymlink$1(location),
@@ -5494,10 +5514,7 @@ async function resolveWithClassic({
   for (let i = 0; i < importSpecifierList.length; i++) {
     // eslint-disable-next-line no-await-in-loop
     const result = await resolveIdClassic({
-      importer,
       importSpecifier: importSpecifierList[i],
-      exportConditions,
-      warn,
       packageInfoCache,
       extensions,
       mainFields,
@@ -5655,8 +5672,17 @@ function nodeResolve(opts = {}) {
 
   const options = { ...defaults, ...opts };
   const { extensions, jail, moduleDirectories, modulePaths, ignoreSideEffectsForRoot } = options;
-  const conditionsEsm = [...baseConditionsEsm, ...(options.exportConditions || [])];
-  const conditionsCjs = [...baseConditionsCjs, ...(options.exportConditions || [])];
+  const exportConditions = options.exportConditions || [];
+  const devProdCondition =
+    exportConditions.includes('development') || exportConditions.includes('production')
+      ? []
+      : [
+          process.env.NODE_ENV && process.env.NODE_ENV !== 'production'
+            ? 'development'
+            : 'production'
+        ];
+  const conditionsEsm = [...baseConditionsEsm, ...exportConditions, ...devProdCondition];
+  const conditionsCjs = [...baseConditionsCjs, ...exportConditions, ...devProdCondition];
   const packageInfoCache = new Map();
   const idToPackageInfo = new Map();
   const mainFields = getMainFields(options);
@@ -5746,7 +5772,7 @@ function nodeResolve(opts = {}) {
 
     const importSpecifierList = [importee];
 
-    if (importer === undefined && !importee[0].match(/^\.?\.?\//)) {
+    if (importer === undefined && importee[0] && !importee[0].match(/^\.?\.?\//)) {
       // For module graph roots (i.e. when importer is undefined), we
       // need to handle 'path fragments` like `foo/bar` that are commonly
       // found in rollup config files. If importee doesn't look like a
@@ -5774,7 +5800,6 @@ function nodeResolve(opts = {}) {
     const warn = (...args) => context.warn(...args);
     const isRequire = custom && custom['node-resolve'] && custom['node-resolve'].isRequire;
     const exportConditions = isRequire ? conditionsCjs : conditionsEsm;
-
     if (useBrowserOverrides && !exportConditions.includes('browser'))
       exportConditions.push('browser');
 
@@ -5895,7 +5920,7 @@ function nodeResolve(opts = {}) {
           return importee;
         }
         // ignore IDs with null character, these belong to other plugins
-        if (/\0/.test(importee)) return null;
+        if (importee && importee.includes('\0')) return null;
 
         const { custom = {} } = resolveOptions;
         const { 'node-resolve': { resolved: alreadyResolved } = {} } = custom;
@@ -5903,7 +5928,7 @@ function nodeResolve(opts = {}) {
           return alreadyResolved;
         }
 
-        if (/\0/.test(importer)) {
+        if (importer && importer.includes('\0')) {
           importer = undefined;
         }
 
@@ -10322,7 +10347,7 @@ function isReference(node, parent) {
     return false;
 }
 
-var version = "28.0.0";
+var version = "28.0.8";
 var peerDependencies = {
 	rollup: "^2.68.0||^3.0.0||^4.0.0"
 };
@@ -10494,7 +10519,7 @@ function getDynamicRequireModules(patterns, dynamicRequireRoot) {
       .withBasePath()
       .withDirs()
       .glob(isNegated ? pattern.substr(1) : pattern)
-      .crawl()
+      .crawl(require$$0$1.relative('.', dynamicRequireRoot))
       .sync()
       .sort((a, b) => a.localeCompare(b, 'en'))) {
       const resolvedPath = require$$0$1.resolve(path);
@@ -10687,11 +10712,15 @@ export function getDefaultExportFromNamespaceIfNotNamed (n) {
 }
 
 export function getAugmentedNamespace(n) {
-  if (n.__esModule) return n;
+  if (Object.prototype.hasOwnProperty.call(n, '__esModule')) return n;
   var f = n.default;
 	if (typeof f == "function") {
 		var a = function a () {
-			if (this instanceof a) {
+			var isInstance = false;
+      try {
+        isInstance = this instanceof a;
+      } catch {}
+			if (isInstance) {
         return Reflect.construct(f, arguments, this.constructor);
 			}
 			return f.apply(this, arguments);
@@ -10799,6 +10828,19 @@ function getEsImportProxy(id, defaultIsModuleExports, moduleSideEffects) {
     code,
     syntheticNamedExports: '__moduleExports'
   };
+}
+
+// For external Node built-ins required from wrapped CommonJS modules, we must not
+// hoist an ESM import of the built-in (which would eagerly load it). Instead,
+// expose a lazy `__require()` that resolves the built-in at runtime via
+// `createRequire(import.meta.url)`.
+function getExternalBuiltinRequireProxy(id) {
+  const stringifiedId = JSON.stringify(id);
+  return (
+    `import { createRequire } from 'node:module';\n` +
+    `const require = createRequire(import.meta.url);\n` +
+    `export function __require() { return require(${stringifiedId}); }`
+  );
 }
 
 /* eslint-disable no-param-reassign, no-undefined */
@@ -11081,7 +11123,7 @@ function getRequireResolver(extensions, detectCyclesAndConditional, currentlyRes
                 return (
                   (await getTypeForImportedModule(
                     (
-                      await this.load({ id: resolved.id })
+                      await this.load(resolved)
                     ).meta.commonjs.resolved,
                     this.load
                   )) !== IS_WRAPPED_COMMONJS
@@ -11130,13 +11172,39 @@ function getRequireResolver(extensions, detectCyclesAndConditional, currentlyRes
         fullyAnalyzedModules[parentId] = true;
         return requireTargets.map(({ id: dependencyId, allowProxy }, index) => {
           // eslint-disable-next-line no-multi-assign
-          const isCommonJS = (parentMeta.isRequiredCommonJS[dependencyId] =
+          let isCommonJS = (parentMeta.isRequiredCommonJS[dependencyId] =
             getTypeForFullyAnalyzedModule(dependencyId));
+          // Special-case external Node built-ins to be handled via a lazy __require
+          // helper instead of hoisted ESM imports when strict wrapping is used.
+          const isExternalWrapped = isWrappedId(dependencyId, EXTERNAL_SUFFIX);
+          if (
+            parentMeta.initialCommonJSType === IS_WRAPPED_COMMONJS &&
+            !allowProxy &&
+            isExternalWrapped
+          ) {
+            const actualExternalId = unwrapId(dependencyId, EXTERNAL_SUFFIX);
+            if (actualExternalId.startsWith('node:')) {
+              isCommonJS = IS_WRAPPED_COMMONJS;
+              parentMeta.isRequiredCommonJS[dependencyId] = isCommonJS;
+            }
+          }
           const isWrappedCommonJS = isCommonJS === IS_WRAPPED_COMMONJS;
           fullyAnalyzedModules[dependencyId] = true;
+          const moduleInfo =
+            isWrappedCommonJS && !isExternalWrapped
+              ? rollupContext.getModuleInfo(dependencyId)
+              : null;
+          // For wrapped dependencies, annotate the generated require call as pure only
+          // when Rollup has module info and it explicitly reports no side effects.
+          // Note: For external Node built-ins (handled via EXTERNAL_SUFFIX), the module
+          // has not been loaded yet at this point and getModuleInfo returns null.
+          // Default to side effects = true in that case to be safe.
+          // Preserve Rollup's tri-state semantics (true | false | 'no-treeshake') when available.
+          const wrappedModuleSideEffects = !isWrappedCommonJS
+            ? false
+            : moduleInfo?.moduleSideEffects ?? true;
           return {
-            wrappedModuleSideEffects:
-              isWrappedCommonJS && rollupContext.getModuleInfo(dependencyId).moduleSideEffects,
+            wrappedModuleSideEffects,
             source: sources[index].source,
             id: allowProxy
               ? wrapId(dependencyId, isWrappedCommonJS ? WRAPPED_SUFFIX : PROXY_SUFFIX)
@@ -12121,7 +12189,7 @@ async function transformCommonjs(
           }
           return;
         case 'ThisExpression':
-          // rewrite top-level `this` as `commonjsHelpers.commonjsGlobal`
+          // rewrite top-level `this` as `exportsName`
           if (lexicalDepth === 0 && !classBodyDepth) {
             uses.global = true;
             if (!ignoreGlobal) {
@@ -12574,6 +12642,9 @@ function commonjs(options = {}) {
 
       if (isWrappedId(id, EXTERNAL_SUFFIX)) {
         const actualId = unwrapId(id, EXTERNAL_SUFFIX);
+        if (actualId.startsWith('node:')) {
+          return getExternalBuiltinRequireProxy(actualId);
+        }
         return getUnknownRequireProxy(
           actualId,
           isEsmExternal(actualId) ? getRequireReturnsDefault(actualId) : true
