@@ -1,6 +1,6 @@
 {
   "name": "@netlogix/stencil-hydrate-server",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "license": "MIT",
   "description": "output target for stencil to generate server for hydrating components",
   "main": "dist/output-target.js",
