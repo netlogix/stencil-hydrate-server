@@ -56,6 +56,12 @@ const logfmt = function (data, prefix = '') {
 };
 const createServer = (renderToString) => {
     return http__namespace.createServer(async (request, response) => {
+        if (request.method === 'GET' && request.url === '/healthz') {
+            response.statusCode = 200;
+            response.write('ok');
+            response.end();
+            return;
+        }
         if (request.method !== 'POST') {
             response.statusCode = 405;
             response.end();
