@@ -1,13 +1,33 @@
 'use strict';
 
 var promises = require('fs/promises');
-var require$$0$1 = require('path');
+var path$2 = require('path');
 var rollup = require('rollup');
 var module$3 = require('module');
 var fs$2 = require('fs');
 var util$2 = require('util');
 var url$2 = require('url');
 var require$$0 = require('os');
+
+var _documentCurrentScript = typeof document !== 'undefined' ? document.currentScript : null;
+function _interopNamespaceDefault(e) {
+	var n = Object.create(null);
+	if (e) {
+		Object.keys(e).forEach(function (k) {
+			if (k !== 'default') {
+				var d = Object.getOwnPropertyDescriptor(e, k);
+				Object.defineProperty(n, k, d.get ? d : {
+					enumerable: true,
+					get: function () { return e[k]; }
+				});
+			}
+		});
+	}
+	n.default = e;
+	return Object.freeze(n);
+}
+
+var fs__namespace = /*#__PURE__*/_interopNamespaceDefault(fs$2);
 
 function getDefaultExportFromCjs (x) {
 	return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, 'default') ? x['default'] : x;
@@ -195,7 +215,14 @@ function requireHomedir () {
 	    var user = process.env.LOGNAME || process.env.USER || process.env.LNAME || process.env.USERNAME;
 
 	    if (process.platform === 'win32') {
-	        return process.env.USERPROFILE || process.env.HOMEDRIVE + process.env.HOMEPATH || home || null;
+	        return process.env.USERPROFILE
+	            || (
+	                process.env.HOMEDRIVE
+	                && process.env.HOMEPATH
+	                && (process.env.HOMEDRIVE + process.env.HOMEPATH)
+	            )
+	            || home
+	            || null;
 	    }
 
 	    if (process.platform === 'darwin') {
@@ -211,18 +238,33 @@ function requireHomedir () {
 	return homedir;
 }
 
+var esErrors;
+var hasRequiredEsErrors;
+
+function requireEsErrors () {
+	if (hasRequiredEsErrors) return esErrors;
+	hasRequiredEsErrors = 1;
+
+	/** @type {import('.')} */
+	esErrors = Error;
+	return esErrors;
+}
+
 var caller;
 var hasRequiredCaller;
 
 function requireCaller () {
 	if (hasRequiredCaller) return caller;
 	hasRequiredCaller = 1;
+
+	var $Error = /*@__PURE__*/ requireEsErrors();
+
 	caller = function () {
 	    // see https://code.google.com/p/v8/wiki/JavaScriptStackTraceApi
-	    var origPrepareStackTrace = Error.prepareStackTrace;
-	    Error.prepareStackTrace = function (_, stack) { return stack; };
-	    var stack = (new Error()).stack;
-	    Error.prepareStackTrace = origPrepareStackTrace;
+	    var origPrepareStackTrace = $Error.prepareStackTrace;
+	    $Error.prepareStackTrace = function (_, stack) { return stack; };
+	    var stack = (new $Error()).stack;
+	    $Error.prepareStackTrace = origPrepareStackTrace;
 	    return stack[2].getFileName();
 	};
 	return caller;
@@ -318,14 +360,17 @@ var hasRequiredNodeModulesPaths;
 function requireNodeModulesPaths () {
 	if (hasRequiredNodeModulesPaths) return nodeModulesPaths;
 	hasRequiredNodeModulesPaths = 1;
-	var path = require$$0$1;
+	var path = path$2;
 	var parse = path.parse || requirePathParse(); // eslint-disable-line global-require
 
-	var getNodeModulesDirs = function getNodeModulesDirs(absoluteStart, modules) {
+	var driveLetterRegex = /^([A-Za-z]:)/;
+	var uncPathRegex = /^\\\\/;
+
+	function getNodeModulesDirs(absoluteStart, modules) {
 	    var prefix = '/';
-	    if ((/^([A-Za-z]:)/).test(absoluteStart)) {
+	    if (driveLetterRegex.test(absoluteStart)) {
 	        prefix = '';
-	    } else if ((/^\\\\/).test(absoluteStart)) {
+	    } else if (uncPathRegex.test(absoluteStart)) {
 	        prefix = '\\\\';
 	    }
 
@@ -341,7 +386,7 @@ function requireNodeModulesPaths () {
 	            return path.resolve(prefix, aPath, moduleDir);
 	        }));
 	    }, []);
-	};
+	}
 
 	nodeModulesPaths = function nodeModulesPaths(start, opts, request) {
 	    var modules = opts && opts.moduleDirectory
@@ -510,7 +555,7 @@ var buffer$1 = true;
 var child_process$1 = true;
 var cluster$1 = ">= 0.5";
 var console$2 = true;
-var constants$3 = true;
+var constants$2 = true;
 var crypto$1 = true;
 var _debug_agent$1 = ">= 1 && < 8";
 var _debugger$1 = "< 8";
@@ -546,12 +591,12 @@ var querystring$1 = true;
 var readline$1 = true;
 var repl$1 = true;
 var smalloc$1 = ">= 0.11.5 && < 3";
-var _stream_duplex$1 = ">= 0.9.4";
-var _stream_transform$1 = ">= 0.9.4";
-var _stream_wrap$1 = ">= 1.4.1";
-var _stream_passthrough$1 = ">= 0.9.4";
-var _stream_readable$1 = ">= 0.9.4";
-var _stream_writable$1 = ">= 0.9.4";
+var _stream_duplex$1 = ">= 0.9.4 && < 26";
+var _stream_transform$1 = ">= 0.9.4 && < 26";
+var _stream_wrap$1 = ">= 1.4.1 && < 26";
+var _stream_passthrough$1 = ">= 0.9.4 && < 26";
+var _stream_readable$1 = ">= 0.9.4 && < 26";
+var _stream_writable$1 = ">= 0.9.4 && < 26";
 var stream$1 = true;
 var string_decoder$1 = true;
 var sys$1 = [
@@ -610,7 +655,7 @@ var require$$1$1 = {
 	">= 14.18 && < 15",
 	">= 16"
 ],
-	constants: constants$3,
+	constants: constants$2,
 	"node:constants": [
 	">= 14.18 && < 15",
 	">= 16"
@@ -779,36 +824,44 @@ var require$$1$1 = {
 	">= 14.18 && < 15",
 	">= 16"
 ],
+	"node:sea": [
+	">= 20.12 && < 21",
+	">= 21.7"
+],
 	smalloc: smalloc$1,
+	"node:sqlite": [
+	">= 22.13 && < 23",
+	">= 23.4"
+],
 	_stream_duplex: _stream_duplex$1,
 	"node:_stream_duplex": [
 	">= 14.18 && < 15",
-	">= 16"
+	">= 16 && < 26"
 ],
 	_stream_transform: _stream_transform$1,
 	"node:_stream_transform": [
 	">= 14.18 && < 15",
-	">= 16"
+	">= 16 && < 26"
 ],
 	_stream_wrap: _stream_wrap$1,
 	"node:_stream_wrap": [
 	">= 14.18 && < 15",
-	">= 16"
+	">= 16 && < 26"
 ],
 	_stream_passthrough: _stream_passthrough$1,
 	"node:_stream_passthrough": [
 	">= 14.18 && < 15",
-	">= 16"
+	">= 16 && < 26"
 ],
 	_stream_readable: _stream_readable$1,
 	"node:_stream_readable": [
 	">= 14.18 && < 15",
-	">= 16"
+	">= 16 && < 26"
 ],
 	_stream_writable: _stream_writable$1,
 	"node:_stream_writable": [
 	">= 14.18 && < 15",
-	">= 16"
+	">= 16 && < 26"
 ],
 	stream: stream$1,
 	"node:stream": [
@@ -837,6 +890,8 @@ var require$$1$1 = {
 	">= 19.9",
 	">= 20"
 ],
+	"test/mock_loader": ">= 22.3 && < 22.7",
+	"node:test/mock_loader": ">= 22.3 && < 22.7",
 	"node:test": [
 	">= 16.17 && < 17",
 	">= 18"
@@ -1015,29 +1070,48 @@ function requireIsCoreModule () {
 	return isCoreModule;
 }
 
-var async$1;
-var hasRequiredAsync$1;
+var type;
+var hasRequiredType;
 
-function requireAsync$1 () {
-	if (hasRequiredAsync$1) return async$1;
-	hasRequiredAsync$1 = 1;
+function requireType () {
+	if (hasRequiredType) return type;
+	hasRequiredType = 1;
+
+	/** @type {import('./type')} */
+	type = TypeError;
+	return type;
+}
+
+var async;
+var hasRequiredAsync;
+
+function requireAsync () {
+	if (hasRequiredAsync) return async;
+	hasRequiredAsync = 1;
 	var fs = fs$2;
 	var getHomedir = requireHomedir();
-	var path = require$$0$1;
+	var path = path$2;
 	var caller = requireCaller();
 	var nodeModulesPaths = requireNodeModulesPaths();
 	var normalizeOptions = requireNormalizeOptions();
 	var isCore = /*@__PURE__*/ requireIsCoreModule();
+	var $Error = /*@__PURE__*/ requireEsErrors();
+	var $TypeError = /*@__PURE__*/ requireType();
 
 	var realpathFS = process.platform !== 'win32' && fs.realpath && typeof fs.realpath.native === 'function' ? fs.realpath.native : fs.realpath;
 
+	var relativePathRegex = /^(?:\.\.?(?:\/|$)|\/|([A-Za-z]:)?[/\\])/;
+	var windowsDriveRegex = /^\w:[/\\]*$/;
+	var nodeModulesRegex = /[/\\]node_modules[/\\]*$/;
+
 	var homedir = getHomedir();
-	var defaultPaths = function () {
+	function defaultPaths() {
+	    if (!homedir) return [];
 	    return [
 	        path.join(homedir, '.node_modules'),
 	        path.join(homedir, '.node_libraries')
 	    ];
-	};
+	}
 
 	var defaultIsFile = function isFile(file, cb) {
 	    fs.stat(file, function (err, stat) {
@@ -1066,15 +1140,15 @@ function requireAsync$1 () {
 	    });
 	};
 
-	var maybeRealpath = function maybeRealpath(realpath, x, opts, cb) {
+	function maybeRealpath(realpath, x, opts, cb) {
 	    if (opts && opts.preserveSymlinks === false) {
 	        realpath(x, cb);
 	    } else {
 	        cb(null, x);
 	    }
-	};
+	}
 
-	var defaultReadPackage = function defaultReadPackage(readFile, pkgfile, cb) {
+	function defaultReadPackage(readFile, pkgfile, cb) {
 	    readFile(pkgfile, function (readFileErr, body) {
 	        if (readFileErr) cb(readFileErr);
 	        else {
@@ -1086,17 +1160,17 @@ function requireAsync$1 () {
 	            }
 	        }
 	    });
-	};
+	}
 
-	var getPackageCandidates = function getPackageCandidates(x, start, opts) {
+	function getPackageCandidates(x, start, opts) {
 	    var dirs = nodeModulesPaths(start, opts, x);
 	    for (var i = 0; i < dirs.length; i++) {
 	        dirs[i] = path.join(dirs[i], x);
 	    }
 	    return dirs;
-	};
+	}
 
-	async$1 = function resolve(x, options, callback) {
+	async = function resolve(x, options, callback) {
 	    var cb = callback;
 	    var opts = options;
 	    if (typeof options === 'function') {
@@ -1104,7 +1178,7 @@ function requireAsync$1 () {
 	        opts = {};
 	    }
 	    if (typeof x !== 'string') {
-	        var err = new TypeError('Path must be a string.');
+	        var err = new $TypeError('Path must be a string.');
 	        return process.nextTick(function () {
 	            cb(err);
 	        });
@@ -1118,7 +1192,7 @@ function requireAsync$1 () {
 	    var realpath = opts.realpath || defaultRealpath;
 	    var readPackage = opts.readPackage || defaultReadPackage;
 	    if (opts.readFile && opts.readPackage) {
-	        var conflictErr = new TypeError('`readFile` and `readPackage` are mutually exclusive.');
+	        var conflictErr = new $TypeError('`readFile` and `readPackage` are mutually exclusive.');
 	        return process.nextTick(function () {
 	            cb(conflictErr);
 	        });
@@ -1147,10 +1221,10 @@ function requireAsync$1 () {
 
 	    var res;
 	    function init(basedir) {
-	        if ((/^(?:\.\.?(?:\/|$)|\/|([A-Za-z]:)?[/\\])/).test(x)) {
+	        if (relativePathRegex.test(x)) {
 	            res = path.resolve(basedir, x);
 	            if (x === '.' || x === '..' || x.slice(-1) === '/') res += '/';
-	            if ((/\/$/).test(x) && res === basedir) {
+	            if (x.slice(-1) === '/' && res === basedir) {
 	                loadAsDirectory(res, opts.package, onfile);
 	            } else loadAsFile(res, opts.package, onfile);
 	        } else if (includeCoreModules && isCore(x)) {
@@ -1166,7 +1240,7 @@ function requireAsync$1 () {
 	                    }
 	                });
 	            } else {
-	                var moduleError = new Error("Cannot find module '" + x + "' from '" + parent + "'");
+	                var moduleError = new $Error("Cannot find module '" + x + "' from '" + parent + "'");
 	                moduleError.code = 'MODULE_NOT_FOUND';
 	                cb(moduleError);
 	            }
@@ -1187,7 +1261,7 @@ function requireAsync$1 () {
 	                    }
 	                });
 	            } else {
-	                var moduleError = new Error("Cannot find module '" + x + "' from '" + parent + "'");
+	                var moduleError = new $Error("Cannot find module '" + x + "' from '" + parent + "'");
 	                moduleError.code = 'MODULE_NOT_FOUND';
 	                cb(moduleError);
 	            }
@@ -1221,7 +1295,7 @@ function requireAsync$1 () {
 	                    var rel = rfile.slice(0, rfile.length - exts[0].length);
 	                    var r = opts.pathFilter(pkg, x, rel);
 	                    if (r) return load(
-	                        [''].concat(extensions.slice()),
+	                        [''].concat(extensions),
 	                        path.resolve(dir, r),
 	                        pkg
 	                    );
@@ -1238,10 +1312,10 @@ function requireAsync$1 () {
 
 	    function loadpkg(dir, cb) {
 	        if (dir === '' || dir === '/') return cb(null);
-	        if (process.platform === 'win32' && (/^\w:[/\\]*$/).test(dir)) {
+	        if (process.platform === 'win32' && windowsDriveRegex.test(dir)) {
 	            return cb(null);
 	        }
-	        if ((/[/\\]node_modules[/\\]*$/).test(dir)) return cb(null);
+	        if (nodeModulesRegex.test(dir)) return cb(null);
 
 	        maybeRealpath(realpath, dir, opts, function (unwrapErr, pkgdir) {
 	            if (unwrapErr) return loadpkg(path.dirname(dir), cb);
@@ -1251,7 +1325,7 @@ function requireAsync$1 () {
 	                if (!ex) return loadpkg(path.dirname(dir), cb);
 
 	                readPackage(readFile, pkgfile, function (err, pkgParam) {
-	                    if (err) cb(err);
+	                    if (err) { return cb(err); }
 
 	                    var pkg = pkgParam;
 
@@ -1290,7 +1364,7 @@ function requireAsync$1 () {
 
 	                    if (pkg && pkg.main) {
 	                        if (typeof pkg.main !== 'string') {
-	                            var mainError = new TypeError('package “' + pkg.name + '” `main` must be a string');
+	                            var mainError = new $TypeError('package “' + pkg.name + '” `main` must be a string');
 	                            mainError.code = 'INVALID_PACKAGE_MAIN';
 	                            return cb(mainError);
 	                        }
@@ -1350,7 +1424,7 @@ function requireAsync$1 () {
 	        );
 	    }
 	};
-	return async$1;
+	return async;
 }
 
 var assert = true;
@@ -1360,7 +1434,7 @@ var buffer = true;
 var child_process = true;
 var cluster = ">= 0.5";
 var console$1 = true;
-var constants$2 = true;
+var constants$1 = true;
 var crypto = true;
 var _debug_agent = ">= 1 && < 8";
 var _debugger = "< 8";
@@ -1460,7 +1534,7 @@ var require$$1 = {
 	">= 14.18 && < 15",
 	">= 16"
 ],
-	constants: constants$2,
+	constants: constants$1,
 	"node:constants": [
 	">= 14.18 && < 15",
 	">= 16"
@@ -1629,7 +1703,15 @@ var require$$1 = {
 	">= 14.18 && < 15",
 	">= 16"
 ],
+	"node:sea": [
+	">= 20.12 && < 21",
+	">= 21.7"
+],
 	smalloc: smalloc,
+	"node:sqlite": [
+	">= 22.13 && < 23",
+	">= 23.4"
+],
 	_stream_duplex: _stream_duplex,
 	"node:_stream_duplex": [
 	">= 14.18 && < 15",
@@ -1687,6 +1769,8 @@ var require$$1 = {
 	">= 19.9",
 	">= 20"
 ],
+	"test/mock_loader": ">= 22.3 && < 22.7",
+	"node:test/mock_loader": ">= 22.3 && < 22.7",
 	"node:test": [
 	">= 16.17 && < 17",
 	">= 18"
@@ -1823,14 +1907,17 @@ function requireIsCore () {
 }
 
 var sync$1;
-var hasRequiredSync$1;
+var hasRequiredSync;
 
-function requireSync$1 () {
-	if (hasRequiredSync$1) return sync$1;
-	hasRequiredSync$1 = 1;
+function requireSync () {
+	if (hasRequiredSync) return sync$1;
+	hasRequiredSync = 1;
 	var isCore = /*@__PURE__*/ requireIsCoreModule();
 	var fs = fs$2;
-	var path = require$$0$1;
+	var path = path$2;
+	var $Error = /*@__PURE__*/ requireEsErrors();
+	var $TypeError = /*@__PURE__*/ requireType();
+
 	var getHomedir = requireHomedir();
 	var caller = requireCaller();
 	var nodeModulesPaths = requireNodeModulesPaths();
@@ -1838,13 +1925,18 @@ function requireSync$1 () {
 
 	var realpathFS = process.platform !== 'win32' && fs.realpathSync && typeof fs.realpathSync.native === 'function' ? fs.realpathSync.native : fs.realpathSync;
 
+	var relativePathRegex = /^(?:\.\.?(?:\/|$)|\/|([A-Za-z]:)?[/\\])/;
+	var windowsDriveRegex = /^\w:[/\\]*$/;
+	var nodeModulesRegex = /[/\\]node_modules[/\\]*$/;
+
 	var homedir = getHomedir();
-	var defaultPaths = function () {
+	function defaultPaths() {
+	    if (!homedir) return [];
 	    return [
 	        path.join(homedir, '.node_modules'),
 	        path.join(homedir, '.node_libraries')
 	    ];
-	};
+	}
 
 	var defaultIsFile = function isFile(file) {
 	    try {
@@ -1877,32 +1969,32 @@ function requireSync$1 () {
 	    return x;
 	};
 
-	var maybeRealpathSync = function maybeRealpathSync(realpathSync, x, opts) {
+	function maybeRealpathSync(realpathSync, x, opts) {
 	    if (opts && opts.preserveSymlinks === false) {
 	        return realpathSync(x);
 	    }
 	    return x;
-	};
+	}
 
-	var defaultReadPackageSync = function defaultReadPackageSync(readFileSync, pkgfile) {
+	function defaultReadPackageSync(readFileSync, pkgfile) {
 	    var body = readFileSync(pkgfile);
 	    try {
 	        var pkg = JSON.parse(body);
 	        return pkg;
 	    } catch (jsonErr) {}
-	};
+	}
 
-	var getPackageCandidates = function getPackageCandidates(x, start, opts) {
+	function getPackageCandidates(x, start, opts) {
 	    var dirs = nodeModulesPaths(start, opts, x);
 	    for (var i = 0; i < dirs.length; i++) {
 	        dirs[i] = path.join(dirs[i], x);
 	    }
 	    return dirs;
-	};
+	}
 
 	sync$1 = function resolveSync(x, options) {
 	    if (typeof x !== 'string') {
-	        throw new TypeError('Path must be a string.');
+	        throw new $TypeError('Path must be a string.');
 	    }
 	    var opts = normalizeOptions(x, options);
 
@@ -1912,7 +2004,7 @@ function requireSync$1 () {
 	    var realpathSync = opts.realpathSync || defaultRealpathSync;
 	    var readPackageSync = opts.readPackageSync || defaultReadPackageSync;
 	    if (opts.readFileSync && opts.readPackageSync) {
-	        throw new TypeError('`readFileSync` and `readPackageSync` are mutually exclusive.');
+	        throw new $TypeError('`readFileSync` and `readPackageSync` are mutually exclusive.');
 	    }
 	    var packageIterator = opts.packageIterator;
 
@@ -1926,7 +2018,7 @@ function requireSync$1 () {
 	    // ensure that `basedir` is an absolute path at this point, resolving against the process' current working directory
 	    var absoluteStart = maybeRealpathSync(realpathSync, path.resolve(basedir), opts);
 
-	    if ((/^(?:\.\.?(?:\/|$)|\/|([A-Za-z]:)?[/\\])/).test(x)) {
+	    if (relativePathRegex.test(x)) {
 	        var res = path.resolve(absoluteStart, x);
 	        if (x === '.' || x === '..' || x.slice(-1) === '/') res += '/';
 	        var m = loadAsFileSync(res) || loadAsDirectorySync(res);
@@ -1938,7 +2030,7 @@ function requireSync$1 () {
 	        if (n) return maybeRealpathSync(realpathSync, n, opts);
 	    }
 
-	    var err = new Error("Cannot find module '" + x + "' from '" + parent + "'");
+	    var err = new $Error("Cannot find module '" + x + "' from '" + parent + "'");
 	    err.code = 'MODULE_NOT_FOUND';
 	    throw err;
 
@@ -1967,10 +2059,10 @@ function requireSync$1 () {
 
 	    function loadpkg(dir) {
 	        if (dir === '' || dir === '/') return;
-	        if (process.platform === 'win32' && (/^\w:[/\\]*$/).test(dir)) {
+	        if (process.platform === 'win32' && windowsDriveRegex.test(dir)) {
 	            return;
 	        }
-	        if ((/[/\\]node_modules[/\\]*$/).test(dir)) return;
+	        if (nodeModulesRegex.test(dir)) return;
 
 	        var pkgfile = path.join(maybeRealpathSync(realpathSync, dir, opts), 'package.json');
 
@@ -2002,7 +2094,7 @@ function requireSync$1 () {
 
 	            if (pkg && pkg.main) {
 	                if (typeof pkg.main !== 'string') {
-	                    var mainError = new TypeError('package “' + pkg.name + '” `main` must be a string');
+	                    var mainError = new $TypeError('package “' + pkg.name + '” `main` must be a string');
 	                    mainError.code = 'INVALID_PACKAGE_MAIN';
 	                    throw mainError;
 	                }
@@ -2045,10 +2137,10 @@ var hasRequiredResolve;
 function requireResolve () {
 	if (hasRequiredResolve) return resolve;
 	hasRequiredResolve = 1;
-	var async = requireAsync$1();
+	var async = requireAsync();
 	async.core = requireCore();
 	async.isCore = requireIsCore();
-	async.sync = requireSync$1();
+	async.sync = requireSync();
 
 	resolve = async;
 	return resolve;
@@ -2257,4434 +2349,6 @@ function walk(ast, { enter, leave }) {
 	return instance.visit(ast, null);
 }
 
-var utils$2 = {};
-
-var constants$1;
-var hasRequiredConstants$1;
-
-function requireConstants$1 () {
-	if (hasRequiredConstants$1) return constants$1;
-	hasRequiredConstants$1 = 1;
-
-	const path = require$$0$1;
-	const WIN_SLASH = '\\\\/';
-	const WIN_NO_SLASH = `[^${WIN_SLASH}]`;
-
-	/**
-	 * Posix glob regex
-	 */
-
-	const DOT_LITERAL = '\\.';
-	const PLUS_LITERAL = '\\+';
-	const QMARK_LITERAL = '\\?';
-	const SLASH_LITERAL = '\\/';
-	const ONE_CHAR = '(?=.)';
-	const QMARK = '[^/]';
-	const END_ANCHOR = `(?:${SLASH_LITERAL}|$)`;
-	const START_ANCHOR = `(?:^|${SLASH_LITERAL})`;
-	const DOTS_SLASH = `${DOT_LITERAL}{1,2}${END_ANCHOR}`;
-	const NO_DOT = `(?!${DOT_LITERAL})`;
-	const NO_DOTS = `(?!${START_ANCHOR}${DOTS_SLASH})`;
-	const NO_DOT_SLASH = `(?!${DOT_LITERAL}{0,1}${END_ANCHOR})`;
-	const NO_DOTS_SLASH = `(?!${DOTS_SLASH})`;
-	const QMARK_NO_DOT = `[^.${SLASH_LITERAL}]`;
-	const STAR = `${QMARK}*?`;
-
-	const POSIX_CHARS = {
-	  DOT_LITERAL,
-	  PLUS_LITERAL,
-	  QMARK_LITERAL,
-	  SLASH_LITERAL,
-	  ONE_CHAR,
-	  QMARK,
-	  END_ANCHOR,
-	  DOTS_SLASH,
-	  NO_DOT,
-	  NO_DOTS,
-	  NO_DOT_SLASH,
-	  NO_DOTS_SLASH,
-	  QMARK_NO_DOT,
-	  STAR,
-	  START_ANCHOR
-	};
-
-	/**
-	 * Windows glob regex
-	 */
-
-	const WINDOWS_CHARS = {
-	  ...POSIX_CHARS,
-
-	  SLASH_LITERAL: `[${WIN_SLASH}]`,
-	  QMARK: WIN_NO_SLASH,
-	  STAR: `${WIN_NO_SLASH}*?`,
-	  DOTS_SLASH: `${DOT_LITERAL}{1,2}(?:[${WIN_SLASH}]|$)`,
-	  NO_DOT: `(?!${DOT_LITERAL})`,
-	  NO_DOTS: `(?!(?:^|[${WIN_SLASH}])${DOT_LITERAL}{1,2}(?:[${WIN_SLASH}]|$))`,
-	  NO_DOT_SLASH: `(?!${DOT_LITERAL}{0,1}(?:[${WIN_SLASH}]|$))`,
-	  NO_DOTS_SLASH: `(?!${DOT_LITERAL}{1,2}(?:[${WIN_SLASH}]|$))`,
-	  QMARK_NO_DOT: `[^.${WIN_SLASH}]`,
-	  START_ANCHOR: `(?:^|[${WIN_SLASH}])`,
-	  END_ANCHOR: `(?:[${WIN_SLASH}]|$)`
-	};
-
-	/**
-	 * POSIX Bracket Regex
-	 */
-
-	const POSIX_REGEX_SOURCE = {
-	  alnum: 'a-zA-Z0-9',
-	  alpha: 'a-zA-Z',
-	  ascii: '\\x00-\\x7F',
-	  blank: ' \\t',
-	  cntrl: '\\x00-\\x1F\\x7F',
-	  digit: '0-9',
-	  graph: '\\x21-\\x7E',
-	  lower: 'a-z',
-	  print: '\\x20-\\x7E ',
-	  punct: '\\-!"#$%&\'()\\*+,./:;<=>?@[\\]^_`{|}~',
-	  space: ' \\t\\r\\n\\v\\f',
-	  upper: 'A-Z',
-	  word: 'A-Za-z0-9_',
-	  xdigit: 'A-Fa-f0-9'
-	};
-
-	constants$1 = {
-	  MAX_LENGTH: 1024 * 64,
-	  POSIX_REGEX_SOURCE,
-
-	  // regular expressions
-	  REGEX_BACKSLASH: /\\(?![*+?^${}(|)[\]])/g,
-	  REGEX_NON_SPECIAL_CHARS: /^[^@![\].,$*+?^{}()|\\/]+/,
-	  REGEX_SPECIAL_CHARS: /[-*+?.^${}(|)[\]]/,
-	  REGEX_SPECIAL_CHARS_BACKREF: /(\\?)((\W)(\3*))/g,
-	  REGEX_SPECIAL_CHARS_GLOBAL: /([-*+?.^${}(|)[\]])/g,
-	  REGEX_REMOVE_BACKSLASH: /(?:\[.*?[^\\]\]|\\(?=.))/g,
-
-	  // Replace globs with equivalent patterns to reduce parsing time.
-	  REPLACEMENTS: {
-	    '***': '*',
-	    '**/**': '**',
-	    '**/**/**': '**'
-	  },
-
-	  // Digits
-	  CHAR_0: 48, /* 0 */
-	  CHAR_9: 57, /* 9 */
-
-	  // Alphabet chars.
-	  CHAR_UPPERCASE_A: 65, /* A */
-	  CHAR_LOWERCASE_A: 97, /* a */
-	  CHAR_UPPERCASE_Z: 90, /* Z */
-	  CHAR_LOWERCASE_Z: 122, /* z */
-
-	  CHAR_LEFT_PARENTHESES: 40, /* ( */
-	  CHAR_RIGHT_PARENTHESES: 41, /* ) */
-
-	  CHAR_ASTERISK: 42, /* * */
-
-	  // Non-alphabetic chars.
-	  CHAR_AMPERSAND: 38, /* & */
-	  CHAR_AT: 64, /* @ */
-	  CHAR_BACKWARD_SLASH: 92, /* \ */
-	  CHAR_CARRIAGE_RETURN: 13, /* \r */
-	  CHAR_CIRCUMFLEX_ACCENT: 94, /* ^ */
-	  CHAR_COLON: 58, /* : */
-	  CHAR_COMMA: 44, /* , */
-	  CHAR_DOT: 46, /* . */
-	  CHAR_DOUBLE_QUOTE: 34, /* " */
-	  CHAR_EQUAL: 61, /* = */
-	  CHAR_EXCLAMATION_MARK: 33, /* ! */
-	  CHAR_FORM_FEED: 12, /* \f */
-	  CHAR_FORWARD_SLASH: 47, /* / */
-	  CHAR_GRAVE_ACCENT: 96, /* ` */
-	  CHAR_HASH: 35, /* # */
-	  CHAR_HYPHEN_MINUS: 45, /* - */
-	  CHAR_LEFT_ANGLE_BRACKET: 60, /* < */
-	  CHAR_LEFT_CURLY_BRACE: 123, /* { */
-	  CHAR_LEFT_SQUARE_BRACKET: 91, /* [ */
-	  CHAR_LINE_FEED: 10, /* \n */
-	  CHAR_NO_BREAK_SPACE: 160, /* \u00A0 */
-	  CHAR_PERCENT: 37, /* % */
-	  CHAR_PLUS: 43, /* + */
-	  CHAR_QUESTION_MARK: 63, /* ? */
-	  CHAR_RIGHT_ANGLE_BRACKET: 62, /* > */
-	  CHAR_RIGHT_CURLY_BRACE: 125, /* } */
-	  CHAR_RIGHT_SQUARE_BRACKET: 93, /* ] */
-	  CHAR_SEMICOLON: 59, /* ; */
-	  CHAR_SINGLE_QUOTE: 39, /* ' */
-	  CHAR_SPACE: 32, /*   */
-	  CHAR_TAB: 9, /* \t */
-	  CHAR_UNDERSCORE: 95, /* _ */
-	  CHAR_VERTICAL_LINE: 124, /* | */
-	  CHAR_ZERO_WIDTH_NOBREAK_SPACE: 65279, /* \uFEFF */
-
-	  SEP: path.sep,
-
-	  /**
-	   * Create EXTGLOB_CHARS
-	   */
-
-	  extglobChars(chars) {
-	    return {
-	      '!': { type: 'negate', open: '(?:(?!(?:', close: `))${chars.STAR})` },
-	      '?': { type: 'qmark', open: '(?:', close: ')?' },
-	      '+': { type: 'plus', open: '(?:', close: ')+' },
-	      '*': { type: 'star', open: '(?:', close: ')*' },
-	      '@': { type: 'at', open: '(?:', close: ')' }
-	    };
-	  },
-
-	  /**
-	   * Create GLOB_CHARS
-	   */
-
-	  globChars(win32) {
-	    return win32 === true ? WINDOWS_CHARS : POSIX_CHARS;
-	  }
-	};
-	return constants$1;
-}
-
-var hasRequiredUtils$2;
-
-function requireUtils$2 () {
-	if (hasRequiredUtils$2) return utils$2;
-	hasRequiredUtils$2 = 1;
-	(function (exports) {
-
-		const path = require$$0$1;
-		const win32 = process.platform === 'win32';
-		const {
-		  REGEX_BACKSLASH,
-		  REGEX_REMOVE_BACKSLASH,
-		  REGEX_SPECIAL_CHARS,
-		  REGEX_SPECIAL_CHARS_GLOBAL
-		} = requireConstants$1();
-
-		exports.isObject = val => val !== null && typeof val === 'object' && !Array.isArray(val);
-		exports.hasRegexChars = str => REGEX_SPECIAL_CHARS.test(str);
-		exports.isRegexChar = str => str.length === 1 && exports.hasRegexChars(str);
-		exports.escapeRegex = str => str.replace(REGEX_SPECIAL_CHARS_GLOBAL, '\\$1');
-		exports.toPosixSlashes = str => str.replace(REGEX_BACKSLASH, '/');
-
-		exports.removeBackslashes = str => {
-		  return str.replace(REGEX_REMOVE_BACKSLASH, match => {
-		    return match === '\\' ? '' : match;
-		  });
-		};
-
-		exports.supportsLookbehinds = () => {
-		  const segs = process.version.slice(1).split('.').map(Number);
-		  if (segs.length === 3 && segs[0] >= 9 || (segs[0] === 8 && segs[1] >= 10)) {
-		    return true;
-		  }
-		  return false;
-		};
-
-		exports.isWindows = options => {
-		  if (options && typeof options.windows === 'boolean') {
-		    return options.windows;
-		  }
-		  return win32 === true || path.sep === '\\';
-		};
-
-		exports.escapeLast = (input, char, lastIdx) => {
-		  const idx = input.lastIndexOf(char, lastIdx);
-		  if (idx === -1) return input;
-		  if (input[idx - 1] === '\\') return exports.escapeLast(input, char, idx - 1);
-		  return `${input.slice(0, idx)}\\${input.slice(idx)}`;
-		};
-
-		exports.removePrefix = (input, state = {}) => {
-		  let output = input;
-		  if (output.startsWith('./')) {
-		    output = output.slice(2);
-		    state.prefix = './';
-		  }
-		  return output;
-		};
-
-		exports.wrapOutput = (input, state = {}, options = {}) => {
-		  const prepend = options.contains ? '' : '^';
-		  const append = options.contains ? '' : '$';
-
-		  let output = `${prepend}(?:${input})${append}`;
-		  if (state.negated === true) {
-		    output = `(?:^(?!${output}).*$)`;
-		  }
-		  return output;
-		}; 
-	} (utils$2));
-	return utils$2;
-}
-
-var scan_1$1;
-var hasRequiredScan$1;
-
-function requireScan$1 () {
-	if (hasRequiredScan$1) return scan_1$1;
-	hasRequiredScan$1 = 1;
-
-	const utils = requireUtils$2();
-	const {
-	  CHAR_ASTERISK,             /* * */
-	  CHAR_AT,                   /* @ */
-	  CHAR_BACKWARD_SLASH,       /* \ */
-	  CHAR_COMMA,                /* , */
-	  CHAR_DOT,                  /* . */
-	  CHAR_EXCLAMATION_MARK,     /* ! */
-	  CHAR_FORWARD_SLASH,        /* / */
-	  CHAR_LEFT_CURLY_BRACE,     /* { */
-	  CHAR_LEFT_PARENTHESES,     /* ( */
-	  CHAR_LEFT_SQUARE_BRACKET,  /* [ */
-	  CHAR_PLUS,                 /* + */
-	  CHAR_QUESTION_MARK,        /* ? */
-	  CHAR_RIGHT_CURLY_BRACE,    /* } */
-	  CHAR_RIGHT_PARENTHESES,    /* ) */
-	  CHAR_RIGHT_SQUARE_BRACKET  /* ] */
-	} = requireConstants$1();
-
-	const isPathSeparator = code => {
-	  return code === CHAR_FORWARD_SLASH || code === CHAR_BACKWARD_SLASH;
-	};
-
-	const depth = token => {
-	  if (token.isPrefix !== true) {
-	    token.depth = token.isGlobstar ? Infinity : 1;
-	  }
-	};
-
-	/**
-	 * Quickly scans a glob pattern and returns an object with a handful of
-	 * useful properties, like `isGlob`, `path` (the leading non-glob, if it exists),
-	 * `glob` (the actual pattern), `negated` (true if the path starts with `!` but not
-	 * with `!(`) and `negatedExtglob` (true if the path starts with `!(`).
-	 *
-	 * ```js
-	 * const pm = require('picomatch');
-	 * console.log(pm.scan('foo/bar/*.js'));
-	 * { isGlob: true, input: 'foo/bar/*.js', base: 'foo/bar', glob: '*.js' }
-	 * ```
-	 * @param {String} `str`
-	 * @param {Object} `options`
-	 * @return {Object} Returns an object with tokens and regex source string.
-	 * @api public
-	 */
-
-	const scan = (input, options) => {
-	  const opts = options || {};
-
-	  const length = input.length - 1;
-	  const scanToEnd = opts.parts === true || opts.scanToEnd === true;
-	  const slashes = [];
-	  const tokens = [];
-	  const parts = [];
-
-	  let str = input;
-	  let index = -1;
-	  let start = 0;
-	  let lastIndex = 0;
-	  let isBrace = false;
-	  let isBracket = false;
-	  let isGlob = false;
-	  let isExtglob = false;
-	  let isGlobstar = false;
-	  let braceEscaped = false;
-	  let backslashes = false;
-	  let negated = false;
-	  let negatedExtglob = false;
-	  let finished = false;
-	  let braces = 0;
-	  let prev;
-	  let code;
-	  let token = { value: '', depth: 0, isGlob: false };
-
-	  const eos = () => index >= length;
-	  const peek = () => str.charCodeAt(index + 1);
-	  const advance = () => {
-	    prev = code;
-	    return str.charCodeAt(++index);
-	  };
-
-	  while (index < length) {
-	    code = advance();
-	    let next;
-
-	    if (code === CHAR_BACKWARD_SLASH) {
-	      backslashes = token.backslashes = true;
-	      code = advance();
-
-	      if (code === CHAR_LEFT_CURLY_BRACE) {
-	        braceEscaped = true;
-	      }
-	      continue;
-	    }
-
-	    if (braceEscaped === true || code === CHAR_LEFT_CURLY_BRACE) {
-	      braces++;
-
-	      while (eos() !== true && (code = advance())) {
-	        if (code === CHAR_BACKWARD_SLASH) {
-	          backslashes = token.backslashes = true;
-	          advance();
-	          continue;
-	        }
-
-	        if (code === CHAR_LEFT_CURLY_BRACE) {
-	          braces++;
-	          continue;
-	        }
-
-	        if (braceEscaped !== true && code === CHAR_DOT && (code = advance()) === CHAR_DOT) {
-	          isBrace = token.isBrace = true;
-	          isGlob = token.isGlob = true;
-	          finished = true;
-
-	          if (scanToEnd === true) {
-	            continue;
-	          }
-
-	          break;
-	        }
-
-	        if (braceEscaped !== true && code === CHAR_COMMA) {
-	          isBrace = token.isBrace = true;
-	          isGlob = token.isGlob = true;
-	          finished = true;
-
-	          if (scanToEnd === true) {
-	            continue;
-	          }
-
-	          break;
-	        }
-
-	        if (code === CHAR_RIGHT_CURLY_BRACE) {
-	          braces--;
-
-	          if (braces === 0) {
-	            braceEscaped = false;
-	            isBrace = token.isBrace = true;
-	            finished = true;
-	            break;
-	          }
-	        }
-	      }
-
-	      if (scanToEnd === true) {
-	        continue;
-	      }
-
-	      break;
-	    }
-
-	    if (code === CHAR_FORWARD_SLASH) {
-	      slashes.push(index);
-	      tokens.push(token);
-	      token = { value: '', depth: 0, isGlob: false };
-
-	      if (finished === true) continue;
-	      if (prev === CHAR_DOT && index === (start + 1)) {
-	        start += 2;
-	        continue;
-	      }
-
-	      lastIndex = index + 1;
-	      continue;
-	    }
-
-	    if (opts.noext !== true) {
-	      const isExtglobChar = code === CHAR_PLUS
-	        || code === CHAR_AT
-	        || code === CHAR_ASTERISK
-	        || code === CHAR_QUESTION_MARK
-	        || code === CHAR_EXCLAMATION_MARK;
-
-	      if (isExtglobChar === true && peek() === CHAR_LEFT_PARENTHESES) {
-	        isGlob = token.isGlob = true;
-	        isExtglob = token.isExtglob = true;
-	        finished = true;
-	        if (code === CHAR_EXCLAMATION_MARK && index === start) {
-	          negatedExtglob = true;
-	        }
-
-	        if (scanToEnd === true) {
-	          while (eos() !== true && (code = advance())) {
-	            if (code === CHAR_BACKWARD_SLASH) {
-	              backslashes = token.backslashes = true;
-	              code = advance();
-	              continue;
-	            }
-
-	            if (code === CHAR_RIGHT_PARENTHESES) {
-	              isGlob = token.isGlob = true;
-	              finished = true;
-	              break;
-	            }
-	          }
-	          continue;
-	        }
-	        break;
-	      }
-	    }
-
-	    if (code === CHAR_ASTERISK) {
-	      if (prev === CHAR_ASTERISK) isGlobstar = token.isGlobstar = true;
-	      isGlob = token.isGlob = true;
-	      finished = true;
-
-	      if (scanToEnd === true) {
-	        continue;
-	      }
-	      break;
-	    }
-
-	    if (code === CHAR_QUESTION_MARK) {
-	      isGlob = token.isGlob = true;
-	      finished = true;
-
-	      if (scanToEnd === true) {
-	        continue;
-	      }
-	      break;
-	    }
-
-	    if (code === CHAR_LEFT_SQUARE_BRACKET) {
-	      while (eos() !== true && (next = advance())) {
-	        if (next === CHAR_BACKWARD_SLASH) {
-	          backslashes = token.backslashes = true;
-	          advance();
-	          continue;
-	        }
-
-	        if (next === CHAR_RIGHT_SQUARE_BRACKET) {
-	          isBracket = token.isBracket = true;
-	          isGlob = token.isGlob = true;
-	          finished = true;
-	          break;
-	        }
-	      }
-
-	      if (scanToEnd === true) {
-	        continue;
-	      }
-
-	      break;
-	    }
-
-	    if (opts.nonegate !== true && code === CHAR_EXCLAMATION_MARK && index === start) {
-	      negated = token.negated = true;
-	      start++;
-	      continue;
-	    }
-
-	    if (opts.noparen !== true && code === CHAR_LEFT_PARENTHESES) {
-	      isGlob = token.isGlob = true;
-
-	      if (scanToEnd === true) {
-	        while (eos() !== true && (code = advance())) {
-	          if (code === CHAR_LEFT_PARENTHESES) {
-	            backslashes = token.backslashes = true;
-	            code = advance();
-	            continue;
-	          }
-
-	          if (code === CHAR_RIGHT_PARENTHESES) {
-	            finished = true;
-	            break;
-	          }
-	        }
-	        continue;
-	      }
-	      break;
-	    }
-
-	    if (isGlob === true) {
-	      finished = true;
-
-	      if (scanToEnd === true) {
-	        continue;
-	      }
-
-	      break;
-	    }
-	  }
-
-	  if (opts.noext === true) {
-	    isExtglob = false;
-	    isGlob = false;
-	  }
-
-	  let base = str;
-	  let prefix = '';
-	  let glob = '';
-
-	  if (start > 0) {
-	    prefix = str.slice(0, start);
-	    str = str.slice(start);
-	    lastIndex -= start;
-	  }
-
-	  if (base && isGlob === true && lastIndex > 0) {
-	    base = str.slice(0, lastIndex);
-	    glob = str.slice(lastIndex);
-	  } else if (isGlob === true) {
-	    base = '';
-	    glob = str;
-	  } else {
-	    base = str;
-	  }
-
-	  if (base && base !== '' && base !== '/' && base !== str) {
-	    if (isPathSeparator(base.charCodeAt(base.length - 1))) {
-	      base = base.slice(0, -1);
-	    }
-	  }
-
-	  if (opts.unescape === true) {
-	    if (glob) glob = utils.removeBackslashes(glob);
-
-	    if (base && backslashes === true) {
-	      base = utils.removeBackslashes(base);
-	    }
-	  }
-
-	  const state = {
-	    prefix,
-	    input,
-	    start,
-	    base,
-	    glob,
-	    isBrace,
-	    isBracket,
-	    isGlob,
-	    isExtglob,
-	    isGlobstar,
-	    negated,
-	    negatedExtglob
-	  };
-
-	  if (opts.tokens === true) {
-	    state.maxDepth = 0;
-	    if (!isPathSeparator(code)) {
-	      tokens.push(token);
-	    }
-	    state.tokens = tokens;
-	  }
-
-	  if (opts.parts === true || opts.tokens === true) {
-	    let prevIndex;
-
-	    for (let idx = 0; idx < slashes.length; idx++) {
-	      const n = prevIndex ? prevIndex + 1 : start;
-	      const i = slashes[idx];
-	      const value = input.slice(n, i);
-	      if (opts.tokens) {
-	        if (idx === 0 && start !== 0) {
-	          tokens[idx].isPrefix = true;
-	          tokens[idx].value = prefix;
-	        } else {
-	          tokens[idx].value = value;
-	        }
-	        depth(tokens[idx]);
-	        state.maxDepth += tokens[idx].depth;
-	      }
-	      if (idx !== 0 || value !== '') {
-	        parts.push(value);
-	      }
-	      prevIndex = i;
-	    }
-
-	    if (prevIndex && prevIndex + 1 < input.length) {
-	      const value = input.slice(prevIndex + 1);
-	      parts.push(value);
-
-	      if (opts.tokens) {
-	        tokens[tokens.length - 1].value = value;
-	        depth(tokens[tokens.length - 1]);
-	        state.maxDepth += tokens[tokens.length - 1].depth;
-	      }
-	    }
-
-	    state.slashes = slashes;
-	    state.parts = parts;
-	  }
-
-	  return state;
-	};
-
-	scan_1$1 = scan;
-	return scan_1$1;
-}
-
-var parse_1$1;
-var hasRequiredParse$1;
-
-function requireParse$1 () {
-	if (hasRequiredParse$1) return parse_1$1;
-	hasRequiredParse$1 = 1;
-
-	const constants = requireConstants$1();
-	const utils = requireUtils$2();
-
-	/**
-	 * Constants
-	 */
-
-	const {
-	  MAX_LENGTH,
-	  POSIX_REGEX_SOURCE,
-	  REGEX_NON_SPECIAL_CHARS,
-	  REGEX_SPECIAL_CHARS_BACKREF,
-	  REPLACEMENTS
-	} = constants;
-
-	/**
-	 * Helpers
-	 */
-
-	const expandRange = (args, options) => {
-	  if (typeof options.expandRange === 'function') {
-	    return options.expandRange(...args, options);
-	  }
-
-	  args.sort();
-	  const value = `[${args.join('-')}]`;
-
-	  try {
-	    /* eslint-disable-next-line no-new */
-	    new RegExp(value);
-	  } catch (ex) {
-	    return args.map(v => utils.escapeRegex(v)).join('..');
-	  }
-
-	  return value;
-	};
-
-	/**
-	 * Create the message for a syntax error
-	 */
-
-	const syntaxError = (type, char) => {
-	  return `Missing ${type}: "${char}" - use "\\\\${char}" to match literal characters`;
-	};
-
-	/**
-	 * Parse the given input string.
-	 * @param {String} input
-	 * @param {Object} options
-	 * @return {Object}
-	 */
-
-	const parse = (input, options) => {
-	  if (typeof input !== 'string') {
-	    throw new TypeError('Expected a string');
-	  }
-
-	  input = REPLACEMENTS[input] || input;
-
-	  const opts = { ...options };
-	  const max = typeof opts.maxLength === 'number' ? Math.min(MAX_LENGTH, opts.maxLength) : MAX_LENGTH;
-
-	  let len = input.length;
-	  if (len > max) {
-	    throw new SyntaxError(`Input length: ${len}, exceeds maximum allowed length: ${max}`);
-	  }
-
-	  const bos = { type: 'bos', value: '', output: opts.prepend || '' };
-	  const tokens = [bos];
-
-	  const capture = opts.capture ? '' : '?:';
-	  const win32 = utils.isWindows(options);
-
-	  // create constants based on platform, for windows or posix
-	  const PLATFORM_CHARS = constants.globChars(win32);
-	  const EXTGLOB_CHARS = constants.extglobChars(PLATFORM_CHARS);
-
-	  const {
-	    DOT_LITERAL,
-	    PLUS_LITERAL,
-	    SLASH_LITERAL,
-	    ONE_CHAR,
-	    DOTS_SLASH,
-	    NO_DOT,
-	    NO_DOT_SLASH,
-	    NO_DOTS_SLASH,
-	    QMARK,
-	    QMARK_NO_DOT,
-	    STAR,
-	    START_ANCHOR
-	  } = PLATFORM_CHARS;
-
-	  const globstar = opts => {
-	    return `(${capture}(?:(?!${START_ANCHOR}${opts.dot ? DOTS_SLASH : DOT_LITERAL}).)*?)`;
-	  };
-
-	  const nodot = opts.dot ? '' : NO_DOT;
-	  const qmarkNoDot = opts.dot ? QMARK : QMARK_NO_DOT;
-	  let star = opts.bash === true ? globstar(opts) : STAR;
-
-	  if (opts.capture) {
-	    star = `(${star})`;
-	  }
-
-	  // minimatch options support
-	  if (typeof opts.noext === 'boolean') {
-	    opts.noextglob = opts.noext;
-	  }
-
-	  const state = {
-	    input,
-	    index: -1,
-	    start: 0,
-	    dot: opts.dot === true,
-	    consumed: '',
-	    output: '',
-	    prefix: '',
-	    backtrack: false,
-	    negated: false,
-	    brackets: 0,
-	    braces: 0,
-	    parens: 0,
-	    quotes: 0,
-	    globstar: false,
-	    tokens
-	  };
-
-	  input = utils.removePrefix(input, state);
-	  len = input.length;
-
-	  const extglobs = [];
-	  const braces = [];
-	  const stack = [];
-	  let prev = bos;
-	  let value;
-
-	  /**
-	   * Tokenizing helpers
-	   */
-
-	  const eos = () => state.index === len - 1;
-	  const peek = state.peek = (n = 1) => input[state.index + n];
-	  const advance = state.advance = () => input[++state.index] || '';
-	  const remaining = () => input.slice(state.index + 1);
-	  const consume = (value = '', num = 0) => {
-	    state.consumed += value;
-	    state.index += num;
-	  };
-
-	  const append = token => {
-	    state.output += token.output != null ? token.output : token.value;
-	    consume(token.value);
-	  };
-
-	  const negate = () => {
-	    let count = 1;
-
-	    while (peek() === '!' && (peek(2) !== '(' || peek(3) === '?')) {
-	      advance();
-	      state.start++;
-	      count++;
-	    }
-
-	    if (count % 2 === 0) {
-	      return false;
-	    }
-
-	    state.negated = true;
-	    state.start++;
-	    return true;
-	  };
-
-	  const increment = type => {
-	    state[type]++;
-	    stack.push(type);
-	  };
-
-	  const decrement = type => {
-	    state[type]--;
-	    stack.pop();
-	  };
-
-	  /**
-	   * Push tokens onto the tokens array. This helper speeds up
-	   * tokenizing by 1) helping us avoid backtracking as much as possible,
-	   * and 2) helping us avoid creating extra tokens when consecutive
-	   * characters are plain text. This improves performance and simplifies
-	   * lookbehinds.
-	   */
-
-	  const push = tok => {
-	    if (prev.type === 'globstar') {
-	      const isBrace = state.braces > 0 && (tok.type === 'comma' || tok.type === 'brace');
-	      const isExtglob = tok.extglob === true || (extglobs.length && (tok.type === 'pipe' || tok.type === 'paren'));
-
-	      if (tok.type !== 'slash' && tok.type !== 'paren' && !isBrace && !isExtglob) {
-	        state.output = state.output.slice(0, -prev.output.length);
-	        prev.type = 'star';
-	        prev.value = '*';
-	        prev.output = star;
-	        state.output += prev.output;
-	      }
-	    }
-
-	    if (extglobs.length && tok.type !== 'paren') {
-	      extglobs[extglobs.length - 1].inner += tok.value;
-	    }
-
-	    if (tok.value || tok.output) append(tok);
-	    if (prev && prev.type === 'text' && tok.type === 'text') {
-	      prev.value += tok.value;
-	      prev.output = (prev.output || '') + tok.value;
-	      return;
-	    }
-
-	    tok.prev = prev;
-	    tokens.push(tok);
-	    prev = tok;
-	  };
-
-	  const extglobOpen = (type, value) => {
-	    const token = { ...EXTGLOB_CHARS[value], conditions: 1, inner: '' };
-
-	    token.prev = prev;
-	    token.parens = state.parens;
-	    token.output = state.output;
-	    const output = (opts.capture ? '(' : '') + token.open;
-
-	    increment('parens');
-	    push({ type, value, output: state.output ? '' : ONE_CHAR });
-	    push({ type: 'paren', extglob: true, value: advance(), output });
-	    extglobs.push(token);
-	  };
-
-	  const extglobClose = token => {
-	    let output = token.close + (opts.capture ? ')' : '');
-	    let rest;
-
-	    if (token.type === 'negate') {
-	      let extglobStar = star;
-
-	      if (token.inner && token.inner.length > 1 && token.inner.includes('/')) {
-	        extglobStar = globstar(opts);
-	      }
-
-	      if (extglobStar !== star || eos() || /^\)+$/.test(remaining())) {
-	        output = token.close = `)$))${extglobStar}`;
-	      }
-
-	      if (token.inner.includes('*') && (rest = remaining()) && /^\.[^\\/.]+$/.test(rest)) {
-	        // Any non-magical string (`.ts`) or even nested expression (`.{ts,tsx}`) can follow after the closing parenthesis.
-	        // In this case, we need to parse the string and use it in the output of the original pattern.
-	        // Suitable patterns: `/!(*.d).ts`, `/!(*.d).{ts,tsx}`, `**/!(*-dbg).@(js)`.
-	        //
-	        // Disabling the `fastpaths` option due to a problem with parsing strings as `.ts` in the pattern like `**/!(*.d).ts`.
-	        const expression = parse(rest, { ...options, fastpaths: false }).output;
-
-	        output = token.close = `)${expression})${extglobStar})`;
-	      }
-
-	      if (token.prev.type === 'bos') {
-	        state.negatedExtglob = true;
-	      }
-	    }
-
-	    push({ type: 'paren', extglob: true, value, output });
-	    decrement('parens');
-	  };
-
-	  /**
-	   * Fast paths
-	   */
-
-	  if (opts.fastpaths !== false && !/(^[*!]|[/()[\]{}"])/.test(input)) {
-	    let backslashes = false;
-
-	    let output = input.replace(REGEX_SPECIAL_CHARS_BACKREF, (m, esc, chars, first, rest, index) => {
-	      if (first === '\\') {
-	        backslashes = true;
-	        return m;
-	      }
-
-	      if (first === '?') {
-	        if (esc) {
-	          return esc + first + (rest ? QMARK.repeat(rest.length) : '');
-	        }
-	        if (index === 0) {
-	          return qmarkNoDot + (rest ? QMARK.repeat(rest.length) : '');
-	        }
-	        return QMARK.repeat(chars.length);
-	      }
-
-	      if (first === '.') {
-	        return DOT_LITERAL.repeat(chars.length);
-	      }
-
-	      if (first === '*') {
-	        if (esc) {
-	          return esc + first + (rest ? star : '');
-	        }
-	        return star;
-	      }
-	      return esc ? m : `\\${m}`;
-	    });
-
-	    if (backslashes === true) {
-	      if (opts.unescape === true) {
-	        output = output.replace(/\\/g, '');
-	      } else {
-	        output = output.replace(/\\+/g, m => {
-	          return m.length % 2 === 0 ? '\\\\' : (m ? '\\' : '');
-	        });
-	      }
-	    }
-
-	    if (output === input && opts.contains === true) {
-	      state.output = input;
-	      return state;
-	    }
-
-	    state.output = utils.wrapOutput(output, state, options);
-	    return state;
-	  }
-
-	  /**
-	   * Tokenize input until we reach end-of-string
-	   */
-
-	  while (!eos()) {
-	    value = advance();
-
-	    if (value === '\u0000') {
-	      continue;
-	    }
-
-	    /**
-	     * Escaped characters
-	     */
-
-	    if (value === '\\') {
-	      const next = peek();
-
-	      if (next === '/' && opts.bash !== true) {
-	        continue;
-	      }
-
-	      if (next === '.' || next === ';') {
-	        continue;
-	      }
-
-	      if (!next) {
-	        value += '\\';
-	        push({ type: 'text', value });
-	        continue;
-	      }
-
-	      // collapse slashes to reduce potential for exploits
-	      const match = /^\\+/.exec(remaining());
-	      let slashes = 0;
-
-	      if (match && match[0].length > 2) {
-	        slashes = match[0].length;
-	        state.index += slashes;
-	        if (slashes % 2 !== 0) {
-	          value += '\\';
-	        }
-	      }
-
-	      if (opts.unescape === true) {
-	        value = advance();
-	      } else {
-	        value += advance();
-	      }
-
-	      if (state.brackets === 0) {
-	        push({ type: 'text', value });
-	        continue;
-	      }
-	    }
-
-	    /**
-	     * If we're inside a regex character class, continue
-	     * until we reach the closing bracket.
-	     */
-
-	    if (state.brackets > 0 && (value !== ']' || prev.value === '[' || prev.value === '[^')) {
-	      if (opts.posix !== false && value === ':') {
-	        const inner = prev.value.slice(1);
-	        if (inner.includes('[')) {
-	          prev.posix = true;
-
-	          if (inner.includes(':')) {
-	            const idx = prev.value.lastIndexOf('[');
-	            const pre = prev.value.slice(0, idx);
-	            const rest = prev.value.slice(idx + 2);
-	            const posix = POSIX_REGEX_SOURCE[rest];
-	            if (posix) {
-	              prev.value = pre + posix;
-	              state.backtrack = true;
-	              advance();
-
-	              if (!bos.output && tokens.indexOf(prev) === 1) {
-	                bos.output = ONE_CHAR;
-	              }
-	              continue;
-	            }
-	          }
-	        }
-	      }
-
-	      if ((value === '[' && peek() !== ':') || (value === '-' && peek() === ']')) {
-	        value = `\\${value}`;
-	      }
-
-	      if (value === ']' && (prev.value === '[' || prev.value === '[^')) {
-	        value = `\\${value}`;
-	      }
-
-	      if (opts.posix === true && value === '!' && prev.value === '[') {
-	        value = '^';
-	      }
-
-	      prev.value += value;
-	      append({ value });
-	      continue;
-	    }
-
-	    /**
-	     * If we're inside a quoted string, continue
-	     * until we reach the closing double quote.
-	     */
-
-	    if (state.quotes === 1 && value !== '"') {
-	      value = utils.escapeRegex(value);
-	      prev.value += value;
-	      append({ value });
-	      continue;
-	    }
-
-	    /**
-	     * Double quotes
-	     */
-
-	    if (value === '"') {
-	      state.quotes = state.quotes === 1 ? 0 : 1;
-	      if (opts.keepQuotes === true) {
-	        push({ type: 'text', value });
-	      }
-	      continue;
-	    }
-
-	    /**
-	     * Parentheses
-	     */
-
-	    if (value === '(') {
-	      increment('parens');
-	      push({ type: 'paren', value });
-	      continue;
-	    }
-
-	    if (value === ')') {
-	      if (state.parens === 0 && opts.strictBrackets === true) {
-	        throw new SyntaxError(syntaxError('opening', '('));
-	      }
-
-	      const extglob = extglobs[extglobs.length - 1];
-	      if (extglob && state.parens === extglob.parens + 1) {
-	        extglobClose(extglobs.pop());
-	        continue;
-	      }
-
-	      push({ type: 'paren', value, output: state.parens ? ')' : '\\)' });
-	      decrement('parens');
-	      continue;
-	    }
-
-	    /**
-	     * Square brackets
-	     */
-
-	    if (value === '[') {
-	      if (opts.nobracket === true || !remaining().includes(']')) {
-	        if (opts.nobracket !== true && opts.strictBrackets === true) {
-	          throw new SyntaxError(syntaxError('closing', ']'));
-	        }
-
-	        value = `\\${value}`;
-	      } else {
-	        increment('brackets');
-	      }
-
-	      push({ type: 'bracket', value });
-	      continue;
-	    }
-
-	    if (value === ']') {
-	      if (opts.nobracket === true || (prev && prev.type === 'bracket' && prev.value.length === 1)) {
-	        push({ type: 'text', value, output: `\\${value}` });
-	        continue;
-	      }
-
-	      if (state.brackets === 0) {
-	        if (opts.strictBrackets === true) {
-	          throw new SyntaxError(syntaxError('opening', '['));
-	        }
-
-	        push({ type: 'text', value, output: `\\${value}` });
-	        continue;
-	      }
-
-	      decrement('brackets');
-
-	      const prevValue = prev.value.slice(1);
-	      if (prev.posix !== true && prevValue[0] === '^' && !prevValue.includes('/')) {
-	        value = `/${value}`;
-	      }
-
-	      prev.value += value;
-	      append({ value });
-
-	      // when literal brackets are explicitly disabled
-	      // assume we should match with a regex character class
-	      if (opts.literalBrackets === false || utils.hasRegexChars(prevValue)) {
-	        continue;
-	      }
-
-	      const escaped = utils.escapeRegex(prev.value);
-	      state.output = state.output.slice(0, -prev.value.length);
-
-	      // when literal brackets are explicitly enabled
-	      // assume we should escape the brackets to match literal characters
-	      if (opts.literalBrackets === true) {
-	        state.output += escaped;
-	        prev.value = escaped;
-	        continue;
-	      }
-
-	      // when the user specifies nothing, try to match both
-	      prev.value = `(${capture}${escaped}|${prev.value})`;
-	      state.output += prev.value;
-	      continue;
-	    }
-
-	    /**
-	     * Braces
-	     */
-
-	    if (value === '{' && opts.nobrace !== true) {
-	      increment('braces');
-
-	      const open = {
-	        type: 'brace',
-	        value,
-	        output: '(',
-	        outputIndex: state.output.length,
-	        tokensIndex: state.tokens.length
-	      };
-
-	      braces.push(open);
-	      push(open);
-	      continue;
-	    }
-
-	    if (value === '}') {
-	      const brace = braces[braces.length - 1];
-
-	      if (opts.nobrace === true || !brace) {
-	        push({ type: 'text', value, output: value });
-	        continue;
-	      }
-
-	      let output = ')';
-
-	      if (brace.dots === true) {
-	        const arr = tokens.slice();
-	        const range = [];
-
-	        for (let i = arr.length - 1; i >= 0; i--) {
-	          tokens.pop();
-	          if (arr[i].type === 'brace') {
-	            break;
-	          }
-	          if (arr[i].type !== 'dots') {
-	            range.unshift(arr[i].value);
-	          }
-	        }
-
-	        output = expandRange(range, opts);
-	        state.backtrack = true;
-	      }
-
-	      if (brace.comma !== true && brace.dots !== true) {
-	        const out = state.output.slice(0, brace.outputIndex);
-	        const toks = state.tokens.slice(brace.tokensIndex);
-	        brace.value = brace.output = '\\{';
-	        value = output = '\\}';
-	        state.output = out;
-	        for (const t of toks) {
-	          state.output += (t.output || t.value);
-	        }
-	      }
-
-	      push({ type: 'brace', value, output });
-	      decrement('braces');
-	      braces.pop();
-	      continue;
-	    }
-
-	    /**
-	     * Pipes
-	     */
-
-	    if (value === '|') {
-	      if (extglobs.length > 0) {
-	        extglobs[extglobs.length - 1].conditions++;
-	      }
-	      push({ type: 'text', value });
-	      continue;
-	    }
-
-	    /**
-	     * Commas
-	     */
-
-	    if (value === ',') {
-	      let output = value;
-
-	      const brace = braces[braces.length - 1];
-	      if (brace && stack[stack.length - 1] === 'braces') {
-	        brace.comma = true;
-	        output = '|';
-	      }
-
-	      push({ type: 'comma', value, output });
-	      continue;
-	    }
-
-	    /**
-	     * Slashes
-	     */
-
-	    if (value === '/') {
-	      // if the beginning of the glob is "./", advance the start
-	      // to the current index, and don't add the "./" characters
-	      // to the state. This greatly simplifies lookbehinds when
-	      // checking for BOS characters like "!" and "." (not "./")
-	      if (prev.type === 'dot' && state.index === state.start + 1) {
-	        state.start = state.index + 1;
-	        state.consumed = '';
-	        state.output = '';
-	        tokens.pop();
-	        prev = bos; // reset "prev" to the first token
-	        continue;
-	      }
-
-	      push({ type: 'slash', value, output: SLASH_LITERAL });
-	      continue;
-	    }
-
-	    /**
-	     * Dots
-	     */
-
-	    if (value === '.') {
-	      if (state.braces > 0 && prev.type === 'dot') {
-	        if (prev.value === '.') prev.output = DOT_LITERAL;
-	        const brace = braces[braces.length - 1];
-	        prev.type = 'dots';
-	        prev.output += value;
-	        prev.value += value;
-	        brace.dots = true;
-	        continue;
-	      }
-
-	      if ((state.braces + state.parens) === 0 && prev.type !== 'bos' && prev.type !== 'slash') {
-	        push({ type: 'text', value, output: DOT_LITERAL });
-	        continue;
-	      }
-
-	      push({ type: 'dot', value, output: DOT_LITERAL });
-	      continue;
-	    }
-
-	    /**
-	     * Question marks
-	     */
-
-	    if (value === '?') {
-	      const isGroup = prev && prev.value === '(';
-	      if (!isGroup && opts.noextglob !== true && peek() === '(' && peek(2) !== '?') {
-	        extglobOpen('qmark', value);
-	        continue;
-	      }
-
-	      if (prev && prev.type === 'paren') {
-	        const next = peek();
-	        let output = value;
-
-	        if (next === '<' && !utils.supportsLookbehinds()) {
-	          throw new Error('Node.js v10 or higher is required for regex lookbehinds');
-	        }
-
-	        if ((prev.value === '(' && !/[!=<:]/.test(next)) || (next === '<' && !/<([!=]|\w+>)/.test(remaining()))) {
-	          output = `\\${value}`;
-	        }
-
-	        push({ type: 'text', value, output });
-	        continue;
-	      }
-
-	      if (opts.dot !== true && (prev.type === 'slash' || prev.type === 'bos')) {
-	        push({ type: 'qmark', value, output: QMARK_NO_DOT });
-	        continue;
-	      }
-
-	      push({ type: 'qmark', value, output: QMARK });
-	      continue;
-	    }
-
-	    /**
-	     * Exclamation
-	     */
-
-	    if (value === '!') {
-	      if (opts.noextglob !== true && peek() === '(') {
-	        if (peek(2) !== '?' || !/[!=<:]/.test(peek(3))) {
-	          extglobOpen('negate', value);
-	          continue;
-	        }
-	      }
-
-	      if (opts.nonegate !== true && state.index === 0) {
-	        negate();
-	        continue;
-	      }
-	    }
-
-	    /**
-	     * Plus
-	     */
-
-	    if (value === '+') {
-	      if (opts.noextglob !== true && peek() === '(' && peek(2) !== '?') {
-	        extglobOpen('plus', value);
-	        continue;
-	      }
-
-	      if ((prev && prev.value === '(') || opts.regex === false) {
-	        push({ type: 'plus', value, output: PLUS_LITERAL });
-	        continue;
-	      }
-
-	      if ((prev && (prev.type === 'bracket' || prev.type === 'paren' || prev.type === 'brace')) || state.parens > 0) {
-	        push({ type: 'plus', value });
-	        continue;
-	      }
-
-	      push({ type: 'plus', value: PLUS_LITERAL });
-	      continue;
-	    }
-
-	    /**
-	     * Plain text
-	     */
-
-	    if (value === '@') {
-	      if (opts.noextglob !== true && peek() === '(' && peek(2) !== '?') {
-	        push({ type: 'at', extglob: true, value, output: '' });
-	        continue;
-	      }
-
-	      push({ type: 'text', value });
-	      continue;
-	    }
-
-	    /**
-	     * Plain text
-	     */
-
-	    if (value !== '*') {
-	      if (value === '$' || value === '^') {
-	        value = `\\${value}`;
-	      }
-
-	      const match = REGEX_NON_SPECIAL_CHARS.exec(remaining());
-	      if (match) {
-	        value += match[0];
-	        state.index += match[0].length;
-	      }
-
-	      push({ type: 'text', value });
-	      continue;
-	    }
-
-	    /**
-	     * Stars
-	     */
-
-	    if (prev && (prev.type === 'globstar' || prev.star === true)) {
-	      prev.type = 'star';
-	      prev.star = true;
-	      prev.value += value;
-	      prev.output = star;
-	      state.backtrack = true;
-	      state.globstar = true;
-	      consume(value);
-	      continue;
-	    }
-
-	    let rest = remaining();
-	    if (opts.noextglob !== true && /^\([^?]/.test(rest)) {
-	      extglobOpen('star', value);
-	      continue;
-	    }
-
-	    if (prev.type === 'star') {
-	      if (opts.noglobstar === true) {
-	        consume(value);
-	        continue;
-	      }
-
-	      const prior = prev.prev;
-	      const before = prior.prev;
-	      const isStart = prior.type === 'slash' || prior.type === 'bos';
-	      const afterStar = before && (before.type === 'star' || before.type === 'globstar');
-
-	      if (opts.bash === true && (!isStart || (rest[0] && rest[0] !== '/'))) {
-	        push({ type: 'star', value, output: '' });
-	        continue;
-	      }
-
-	      const isBrace = state.braces > 0 && (prior.type === 'comma' || prior.type === 'brace');
-	      const isExtglob = extglobs.length && (prior.type === 'pipe' || prior.type === 'paren');
-	      if (!isStart && prior.type !== 'paren' && !isBrace && !isExtglob) {
-	        push({ type: 'star', value, output: '' });
-	        continue;
-	      }
-
-	      // strip consecutive `/**/`
-	      while (rest.slice(0, 3) === '/**') {
-	        const after = input[state.index + 4];
-	        if (after && after !== '/') {
-	          break;
-	        }
-	        rest = rest.slice(3);
-	        consume('/**', 3);
-	      }
-
-	      if (prior.type === 'bos' && eos()) {
-	        prev.type = 'globstar';
-	        prev.value += value;
-	        prev.output = globstar(opts);
-	        state.output = prev.output;
-	        state.globstar = true;
-	        consume(value);
-	        continue;
-	      }
-
-	      if (prior.type === 'slash' && prior.prev.type !== 'bos' && !afterStar && eos()) {
-	        state.output = state.output.slice(0, -(prior.output + prev.output).length);
-	        prior.output = `(?:${prior.output}`;
-
-	        prev.type = 'globstar';
-	        prev.output = globstar(opts) + (opts.strictSlashes ? ')' : '|$)');
-	        prev.value += value;
-	        state.globstar = true;
-	        state.output += prior.output + prev.output;
-	        consume(value);
-	        continue;
-	      }
-
-	      if (prior.type === 'slash' && prior.prev.type !== 'bos' && rest[0] === '/') {
-	        const end = rest[1] !== void 0 ? '|$' : '';
-
-	        state.output = state.output.slice(0, -(prior.output + prev.output).length);
-	        prior.output = `(?:${prior.output}`;
-
-	        prev.type = 'globstar';
-	        prev.output = `${globstar(opts)}${SLASH_LITERAL}|${SLASH_LITERAL}${end})`;
-	        prev.value += value;
-
-	        state.output += prior.output + prev.output;
-	        state.globstar = true;
-
-	        consume(value + advance());
-
-	        push({ type: 'slash', value: '/', output: '' });
-	        continue;
-	      }
-
-	      if (prior.type === 'bos' && rest[0] === '/') {
-	        prev.type = 'globstar';
-	        prev.value += value;
-	        prev.output = `(?:^|${SLASH_LITERAL}|${globstar(opts)}${SLASH_LITERAL})`;
-	        state.output = prev.output;
-	        state.globstar = true;
-	        consume(value + advance());
-	        push({ type: 'slash', value: '/', output: '' });
-	        continue;
-	      }
-
-	      // remove single star from output
-	      state.output = state.output.slice(0, -prev.output.length);
-
-	      // reset previous token to globstar
-	      prev.type = 'globstar';
-	      prev.output = globstar(opts);
-	      prev.value += value;
-
-	      // reset output with globstar
-	      state.output += prev.output;
-	      state.globstar = true;
-	      consume(value);
-	      continue;
-	    }
-
-	    const token = { type: 'star', value, output: star };
-
-	    if (opts.bash === true) {
-	      token.output = '.*?';
-	      if (prev.type === 'bos' || prev.type === 'slash') {
-	        token.output = nodot + token.output;
-	      }
-	      push(token);
-	      continue;
-	    }
-
-	    if (prev && (prev.type === 'bracket' || prev.type === 'paren') && opts.regex === true) {
-	      token.output = value;
-	      push(token);
-	      continue;
-	    }
-
-	    if (state.index === state.start || prev.type === 'slash' || prev.type === 'dot') {
-	      if (prev.type === 'dot') {
-	        state.output += NO_DOT_SLASH;
-	        prev.output += NO_DOT_SLASH;
-
-	      } else if (opts.dot === true) {
-	        state.output += NO_DOTS_SLASH;
-	        prev.output += NO_DOTS_SLASH;
-
-	      } else {
-	        state.output += nodot;
-	        prev.output += nodot;
-	      }
-
-	      if (peek() !== '*') {
-	        state.output += ONE_CHAR;
-	        prev.output += ONE_CHAR;
-	      }
-	    }
-
-	    push(token);
-	  }
-
-	  while (state.brackets > 0) {
-	    if (opts.strictBrackets === true) throw new SyntaxError(syntaxError('closing', ']'));
-	    state.output = utils.escapeLast(state.output, '[');
-	    decrement('brackets');
-	  }
-
-	  while (state.parens > 0) {
-	    if (opts.strictBrackets === true) throw new SyntaxError(syntaxError('closing', ')'));
-	    state.output = utils.escapeLast(state.output, '(');
-	    decrement('parens');
-	  }
-
-	  while (state.braces > 0) {
-	    if (opts.strictBrackets === true) throw new SyntaxError(syntaxError('closing', '}'));
-	    state.output = utils.escapeLast(state.output, '{');
-	    decrement('braces');
-	  }
-
-	  if (opts.strictSlashes !== true && (prev.type === 'star' || prev.type === 'bracket')) {
-	    push({ type: 'maybe_slash', value: '', output: `${SLASH_LITERAL}?` });
-	  }
-
-	  // rebuild the output if we had to backtrack at any point
-	  if (state.backtrack === true) {
-	    state.output = '';
-
-	    for (const token of state.tokens) {
-	      state.output += token.output != null ? token.output : token.value;
-
-	      if (token.suffix) {
-	        state.output += token.suffix;
-	      }
-	    }
-	  }
-
-	  return state;
-	};
-
-	/**
-	 * Fast paths for creating regular expressions for common glob patterns.
-	 * This can significantly speed up processing and has very little downside
-	 * impact when none of the fast paths match.
-	 */
-
-	parse.fastpaths = (input, options) => {
-	  const opts = { ...options };
-	  const max = typeof opts.maxLength === 'number' ? Math.min(MAX_LENGTH, opts.maxLength) : MAX_LENGTH;
-	  const len = input.length;
-	  if (len > max) {
-	    throw new SyntaxError(`Input length: ${len}, exceeds maximum allowed length: ${max}`);
-	  }
-
-	  input = REPLACEMENTS[input] || input;
-	  const win32 = utils.isWindows(options);
-
-	  // create constants based on platform, for windows or posix
-	  const {
-	    DOT_LITERAL,
-	    SLASH_LITERAL,
-	    ONE_CHAR,
-	    DOTS_SLASH,
-	    NO_DOT,
-	    NO_DOTS,
-	    NO_DOTS_SLASH,
-	    STAR,
-	    START_ANCHOR
-	  } = constants.globChars(win32);
-
-	  const nodot = opts.dot ? NO_DOTS : NO_DOT;
-	  const slashDot = opts.dot ? NO_DOTS_SLASH : NO_DOT;
-	  const capture = opts.capture ? '' : '?:';
-	  const state = { negated: false, prefix: '' };
-	  let star = opts.bash === true ? '.*?' : STAR;
-
-	  if (opts.capture) {
-	    star = `(${star})`;
-	  }
-
-	  const globstar = opts => {
-	    if (opts.noglobstar === true) return star;
-	    return `(${capture}(?:(?!${START_ANCHOR}${opts.dot ? DOTS_SLASH : DOT_LITERAL}).)*?)`;
-	  };
-
-	  const create = str => {
-	    switch (str) {
-	      case '*':
-	        return `${nodot}${ONE_CHAR}${star}`;
-
-	      case '.*':
-	        return `${DOT_LITERAL}${ONE_CHAR}${star}`;
-
-	      case '*.*':
-	        return `${nodot}${star}${DOT_LITERAL}${ONE_CHAR}${star}`;
-
-	      case '*/*':
-	        return `${nodot}${star}${SLASH_LITERAL}${ONE_CHAR}${slashDot}${star}`;
-
-	      case '**':
-	        return nodot + globstar(opts);
-
-	      case '**/*':
-	        return `(?:${nodot}${globstar(opts)}${SLASH_LITERAL})?${slashDot}${ONE_CHAR}${star}`;
-
-	      case '**/*.*':
-	        return `(?:${nodot}${globstar(opts)}${SLASH_LITERAL})?${slashDot}${star}${DOT_LITERAL}${ONE_CHAR}${star}`;
-
-	      case '**/.*':
-	        return `(?:${nodot}${globstar(opts)}${SLASH_LITERAL})?${DOT_LITERAL}${ONE_CHAR}${star}`;
-
-	      default: {
-	        const match = /^(.*?)\.(\w+)$/.exec(str);
-	        if (!match) return;
-
-	        const source = create(match[1]);
-	        if (!source) return;
-
-	        return source + DOT_LITERAL + match[2];
-	      }
-	    }
-	  };
-
-	  const output = utils.removePrefix(input, state);
-	  let source = create(output);
-
-	  if (source && opts.strictSlashes !== true) {
-	    source += `${SLASH_LITERAL}?`;
-	  }
-
-	  return source;
-	};
-
-	parse_1$1 = parse;
-	return parse_1$1;
-}
-
-var picomatch_1$2;
-var hasRequiredPicomatch$3;
-
-function requirePicomatch$3 () {
-	if (hasRequiredPicomatch$3) return picomatch_1$2;
-	hasRequiredPicomatch$3 = 1;
-
-	const path = require$$0$1;
-	const scan = requireScan$1();
-	const parse = requireParse$1();
-	const utils = requireUtils$2();
-	const constants = requireConstants$1();
-	const isObject = val => val && typeof val === 'object' && !Array.isArray(val);
-
-	/**
-	 * Creates a matcher function from one or more glob patterns. The
-	 * returned function takes a string to match as its first argument,
-	 * and returns true if the string is a match. The returned matcher
-	 * function also takes a boolean as the second argument that, when true,
-	 * returns an object with additional information.
-	 *
-	 * ```js
-	 * const picomatch = require('picomatch');
-	 * // picomatch(glob[, options]);
-	 *
-	 * const isMatch = picomatch('*.!(*a)');
-	 * console.log(isMatch('a.a')); //=> false
-	 * console.log(isMatch('a.b')); //=> true
-	 * ```
-	 * @name picomatch
-	 * @param {String|Array} `globs` One or more glob patterns.
-	 * @param {Object=} `options`
-	 * @return {Function=} Returns a matcher function.
-	 * @api public
-	 */
-
-	const picomatch = (glob, options, returnState = false) => {
-	  if (Array.isArray(glob)) {
-	    const fns = glob.map(input => picomatch(input, options, returnState));
-	    const arrayMatcher = str => {
-	      for (const isMatch of fns) {
-	        const state = isMatch(str);
-	        if (state) return state;
-	      }
-	      return false;
-	    };
-	    return arrayMatcher;
-	  }
-
-	  const isState = isObject(glob) && glob.tokens && glob.input;
-
-	  if (glob === '' || (typeof glob !== 'string' && !isState)) {
-	    throw new TypeError('Expected pattern to be a non-empty string');
-	  }
-
-	  const opts = options || {};
-	  const posix = utils.isWindows(options);
-	  const regex = isState
-	    ? picomatch.compileRe(glob, options)
-	    : picomatch.makeRe(glob, options, false, true);
-
-	  const state = regex.state;
-	  delete regex.state;
-
-	  let isIgnored = () => false;
-	  if (opts.ignore) {
-	    const ignoreOpts = { ...options, ignore: null, onMatch: null, onResult: null };
-	    isIgnored = picomatch(opts.ignore, ignoreOpts, returnState);
-	  }
-
-	  const matcher = (input, returnObject = false) => {
-	    const { isMatch, match, output } = picomatch.test(input, regex, options, { glob, posix });
-	    const result = { glob, state, regex, posix, input, output, match, isMatch };
-
-	    if (typeof opts.onResult === 'function') {
-	      opts.onResult(result);
-	    }
-
-	    if (isMatch === false) {
-	      result.isMatch = false;
-	      return returnObject ? result : false;
-	    }
-
-	    if (isIgnored(input)) {
-	      if (typeof opts.onIgnore === 'function') {
-	        opts.onIgnore(result);
-	      }
-	      result.isMatch = false;
-	      return returnObject ? result : false;
-	    }
-
-	    if (typeof opts.onMatch === 'function') {
-	      opts.onMatch(result);
-	    }
-	    return returnObject ? result : true;
-	  };
-
-	  if (returnState) {
-	    matcher.state = state;
-	  }
-
-	  return matcher;
-	};
-
-	/**
-	 * Test `input` with the given `regex`. This is used by the main
-	 * `picomatch()` function to test the input string.
-	 *
-	 * ```js
-	 * const picomatch = require('picomatch');
-	 * // picomatch.test(input, regex[, options]);
-	 *
-	 * console.log(picomatch.test('foo/bar', /^(?:([^/]*?)\/([^/]*?))$/));
-	 * // { isMatch: true, match: [ 'foo/', 'foo', 'bar' ], output: 'foo/bar' }
-	 * ```
-	 * @param {String} `input` String to test.
-	 * @param {RegExp} `regex`
-	 * @return {Object} Returns an object with matching info.
-	 * @api public
-	 */
-
-	picomatch.test = (input, regex, options, { glob, posix } = {}) => {
-	  if (typeof input !== 'string') {
-	    throw new TypeError('Expected input to be a string');
-	  }
-
-	  if (input === '') {
-	    return { isMatch: false, output: '' };
-	  }
-
-	  const opts = options || {};
-	  const format = opts.format || (posix ? utils.toPosixSlashes : null);
-	  let match = input === glob;
-	  let output = (match && format) ? format(input) : input;
-
-	  if (match === false) {
-	    output = format ? format(input) : input;
-	    match = output === glob;
-	  }
-
-	  if (match === false || opts.capture === true) {
-	    if (opts.matchBase === true || opts.basename === true) {
-	      match = picomatch.matchBase(input, regex, options, posix);
-	    } else {
-	      match = regex.exec(output);
-	    }
-	  }
-
-	  return { isMatch: Boolean(match), match, output };
-	};
-
-	/**
-	 * Match the basename of a filepath.
-	 *
-	 * ```js
-	 * const picomatch = require('picomatch');
-	 * // picomatch.matchBase(input, glob[, options]);
-	 * console.log(picomatch.matchBase('foo/bar.js', '*.js'); // true
-	 * ```
-	 * @param {String} `input` String to test.
-	 * @param {RegExp|String} `glob` Glob pattern or regex created by [.makeRe](#makeRe).
-	 * @return {Boolean}
-	 * @api public
-	 */
-
-	picomatch.matchBase = (input, glob, options, posix = utils.isWindows(options)) => {
-	  const regex = glob instanceof RegExp ? glob : picomatch.makeRe(glob, options);
-	  return regex.test(path.basename(input));
-	};
-
-	/**
-	 * Returns true if **any** of the given glob `patterns` match the specified `string`.
-	 *
-	 * ```js
-	 * const picomatch = require('picomatch');
-	 * // picomatch.isMatch(string, patterns[, options]);
-	 *
-	 * console.log(picomatch.isMatch('a.a', ['b.*', '*.a'])); //=> true
-	 * console.log(picomatch.isMatch('a.a', 'b.*')); //=> false
-	 * ```
-	 * @param {String|Array} str The string to test.
-	 * @param {String|Array} patterns One or more glob patterns to use for matching.
-	 * @param {Object} [options] See available [options](#options).
-	 * @return {Boolean} Returns true if any patterns match `str`
-	 * @api public
-	 */
-
-	picomatch.isMatch = (str, patterns, options) => picomatch(patterns, options)(str);
-
-	/**
-	 * Parse a glob pattern to create the source string for a regular
-	 * expression.
-	 *
-	 * ```js
-	 * const picomatch = require('picomatch');
-	 * const result = picomatch.parse(pattern[, options]);
-	 * ```
-	 * @param {String} `pattern`
-	 * @param {Object} `options`
-	 * @return {Object} Returns an object with useful properties and output to be used as a regex source string.
-	 * @api public
-	 */
-
-	picomatch.parse = (pattern, options) => {
-	  if (Array.isArray(pattern)) return pattern.map(p => picomatch.parse(p, options));
-	  return parse(pattern, { ...options, fastpaths: false });
-	};
-
-	/**
-	 * Scan a glob pattern to separate the pattern into segments.
-	 *
-	 * ```js
-	 * const picomatch = require('picomatch');
-	 * // picomatch.scan(input[, options]);
-	 *
-	 * const result = picomatch.scan('!./foo/*.js');
-	 * console.log(result);
-	 * { prefix: '!./',
-	 *   input: '!./foo/*.js',
-	 *   start: 3,
-	 *   base: 'foo',
-	 *   glob: '*.js',
-	 *   isBrace: false,
-	 *   isBracket: false,
-	 *   isGlob: true,
-	 *   isExtglob: false,
-	 *   isGlobstar: false,
-	 *   negated: true }
-	 * ```
-	 * @param {String} `input` Glob pattern to scan.
-	 * @param {Object} `options`
-	 * @return {Object} Returns an object with
-	 * @api public
-	 */
-
-	picomatch.scan = (input, options) => scan(input, options);
-
-	/**
-	 * Compile a regular expression from the `state` object returned by the
-	 * [parse()](#parse) method.
-	 *
-	 * @param {Object} `state`
-	 * @param {Object} `options`
-	 * @param {Boolean} `returnOutput` Intended for implementors, this argument allows you to return the raw output from the parser.
-	 * @param {Boolean} `returnState` Adds the state to a `state` property on the returned regex. Useful for implementors and debugging.
-	 * @return {RegExp}
-	 * @api public
-	 */
-
-	picomatch.compileRe = (state, options, returnOutput = false, returnState = false) => {
-	  if (returnOutput === true) {
-	    return state.output;
-	  }
-
-	  const opts = options || {};
-	  const prepend = opts.contains ? '' : '^';
-	  const append = opts.contains ? '' : '$';
-
-	  let source = `${prepend}(?:${state.output})${append}`;
-	  if (state && state.negated === true) {
-	    source = `^(?!${source}).*$`;
-	  }
-
-	  const regex = picomatch.toRegex(source, options);
-	  if (returnState === true) {
-	    regex.state = state;
-	  }
-
-	  return regex;
-	};
-
-	/**
-	 * Create a regular expression from a parsed glob pattern.
-	 *
-	 * ```js
-	 * const picomatch = require('picomatch');
-	 * const state = picomatch.parse('*.js');
-	 * // picomatch.compileRe(state[, options]);
-	 *
-	 * console.log(picomatch.compileRe(state));
-	 * //=> /^(?:(?!\.)(?=.)[^/]*?\.js)$/
-	 * ```
-	 * @param {String} `state` The object returned from the `.parse` method.
-	 * @param {Object} `options`
-	 * @param {Boolean} `returnOutput` Implementors may use this argument to return the compiled output, instead of a regular expression. This is not exposed on the options to prevent end-users from mutating the result.
-	 * @param {Boolean} `returnState` Implementors may use this argument to return the state from the parsed glob with the returned regular expression.
-	 * @return {RegExp} Returns a regex created from the given pattern.
-	 * @api public
-	 */
-
-	picomatch.makeRe = (input, options = {}, returnOutput = false, returnState = false) => {
-	  if (!input || typeof input !== 'string') {
-	    throw new TypeError('Expected a non-empty string');
-	  }
-
-	  let parsed = { negated: false, fastpaths: true };
-
-	  if (options.fastpaths !== false && (input[0] === '.' || input[0] === '*')) {
-	    parsed.output = parse.fastpaths(input, options);
-	  }
-
-	  if (!parsed.output) {
-	    parsed = parse(input, options);
-	  }
-
-	  return picomatch.compileRe(parsed, options, returnOutput, returnState);
-	};
-
-	/**
-	 * Create a regular expression from the given regex source string.
-	 *
-	 * ```js
-	 * const picomatch = require('picomatch');
-	 * // picomatch.toRegex(source[, options]);
-	 *
-	 * const { output } = picomatch.parse('*.js');
-	 * console.log(picomatch.toRegex(output));
-	 * //=> /^(?:(?!\.)(?=.)[^/]*?\.js)$/
-	 * ```
-	 * @param {String} `source` Regular expression source string.
-	 * @param {Object} `options`
-	 * @return {RegExp}
-	 * @api public
-	 */
-
-	picomatch.toRegex = (source, options) => {
-	  try {
-	    const opts = options || {};
-	    return new RegExp(source, opts.flags || (opts.nocase ? 'i' : ''));
-	  } catch (err) {
-	    if (options && options.debug === true) throw err;
-	    return /$^/;
-	  }
-	};
-
-	/**
-	 * Picomatch constants.
-	 * @return {Object}
-	 */
-
-	picomatch.constants = constants;
-
-	/**
-	 * Expose "picomatch"
-	 */
-
-	picomatch_1$2 = picomatch;
-	return picomatch_1$2;
-}
-
-var picomatch;
-var hasRequiredPicomatch$2;
-
-function requirePicomatch$2 () {
-	if (hasRequiredPicomatch$2) return picomatch;
-	hasRequiredPicomatch$2 = 1;
-
-	picomatch = requirePicomatch$3();
-	return picomatch;
-}
-
-var picomatchExports = requirePicomatch$2();
-var pm = /*@__PURE__*/getDefaultExportFromCjs(picomatchExports);
-
-const extractors = {
-    ArrayPattern(names, param) {
-        for (const element of param.elements) {
-            if (element)
-                extractors[element.type](names, element);
-        }
-    },
-    AssignmentPattern(names, param) {
-        extractors[param.left.type](names, param.left);
-    },
-    Identifier(names, param) {
-        names.push(param.name);
-    },
-    MemberExpression() { },
-    ObjectPattern(names, param) {
-        for (const prop of param.properties) {
-            // @ts-ignore Typescript reports that this is not a valid type
-            if (prop.type === 'RestElement') {
-                extractors.RestElement(names, prop);
-            }
-            else {
-                extractors[prop.value.type](names, prop.value);
-            }
-        }
-    },
-    RestElement(names, param) {
-        extractors[param.argument.type](names, param.argument);
-    }
-};
-const extractAssignedNames = function extractAssignedNames(param) {
-    const names = [];
-    extractors[param.type](names, param);
-    return names;
-};
-
-const blockDeclarations = {
-    const: true,
-    let: true
-};
-class Scope {
-    constructor(options = {}) {
-        this.parent = options.parent;
-        this.isBlockScope = !!options.block;
-        this.declarations = Object.create(null);
-        if (options.params) {
-            options.params.forEach((param) => {
-                extractAssignedNames(param).forEach((name) => {
-                    this.declarations[name] = true;
-                });
-            });
-        }
-    }
-    addDeclaration(node, isBlockDeclaration, isVar) {
-        if (!isBlockDeclaration && this.isBlockScope) {
-            // it's a `var` or function node, and this
-            // is a block scope, so we need to go up
-            this.parent.addDeclaration(node, isBlockDeclaration, isVar);
-        }
-        else if (node.id) {
-            extractAssignedNames(node.id).forEach((name) => {
-                this.declarations[name] = true;
-            });
-        }
-    }
-    contains(name) {
-        return this.declarations[name] || (this.parent ? this.parent.contains(name) : false);
-    }
-}
-const attachScopes = function attachScopes(ast, propertyName = 'scope') {
-    let scope = new Scope();
-    walk(ast, {
-        enter(n, parent) {
-            const node = n;
-            // function foo () {...}
-            // class Foo {...}
-            if (/(Function|Class)Declaration/.test(node.type)) {
-                scope.addDeclaration(node, false, false);
-            }
-            // var foo = 1
-            if (node.type === 'VariableDeclaration') {
-                const { kind } = node;
-                const isBlockDeclaration = blockDeclarations[kind];
-                node.declarations.forEach((declaration) => {
-                    scope.addDeclaration(declaration, isBlockDeclaration, true);
-                });
-            }
-            let newScope;
-            // create new function scope
-            if (/Function/.test(node.type)) {
-                const func = node;
-                newScope = new Scope({
-                    parent: scope,
-                    block: false,
-                    params: func.params
-                });
-                // named function expressions - the name is considered
-                // part of the function's scope
-                if (func.type === 'FunctionExpression' && func.id) {
-                    newScope.addDeclaration(func, false, false);
-                }
-            }
-            // create new for scope
-            if (/For(In|Of)?Statement/.test(node.type)) {
-                newScope = new Scope({
-                    parent: scope,
-                    block: true
-                });
-            }
-            // create new block scope
-            if (node.type === 'BlockStatement' && !/Function/.test(parent.type)) {
-                newScope = new Scope({
-                    parent: scope,
-                    block: true
-                });
-            }
-            // catch clause has its own block scope
-            if (node.type === 'CatchClause') {
-                newScope = new Scope({
-                    parent: scope,
-                    params: node.param ? [node.param] : [],
-                    block: true
-                });
-            }
-            if (newScope) {
-                Object.defineProperty(node, propertyName, {
-                    value: newScope,
-                    configurable: true
-                });
-                scope = newScope;
-            }
-        },
-        leave(n) {
-            const node = n;
-            if (node[propertyName])
-                scope = scope.parent;
-        }
-    });
-    return scope;
-};
-
-// Helper since Typescript can't detect readonly arrays with Array.isArray
-function isArray(arg) {
-    return Array.isArray(arg);
-}
-function ensureArray(thing) {
-    if (isArray(thing))
-        return thing;
-    if (thing == null)
-        return [];
-    return [thing];
-}
-
-const normalizePath = function normalizePath(filename) {
-    return filename.split(require$$0$1.win32.sep).join(require$$0$1.posix.sep);
-};
-
-function getMatcherString(id, resolutionBase) {
-    if (resolutionBase === false || require$$0$1.isAbsolute(id) || id.startsWith('**')) {
-        return normalizePath(id);
-    }
-    // resolve('') is valid and will default to process.cwd()
-    const basePath = normalizePath(require$$0$1.resolve(resolutionBase || ''))
-        // escape all possible (posix + win) path characters that might interfere with regex
-        .replace(/[-^$*+?.()|[\]{}]/g, '\\$&');
-    // Note that we use posix.join because:
-    // 1. the basePath has been normalized to use /
-    // 2. the incoming glob (id) matcher, also uses /
-    // otherwise Node will force backslash (\) on windows
-    return require$$0$1.posix.join(basePath, normalizePath(id));
-}
-const createFilter = function createFilter(include, exclude, options) {
-    const resolutionBase = options && options.resolve;
-    const getMatcher = (id) => id instanceof RegExp
-        ? id
-        : {
-            test: (what) => {
-                // this refactor is a tad overly verbose but makes for easy debugging
-                const pattern = getMatcherString(id, resolutionBase);
-                const fn = pm(pattern, { dot: true });
-                const result = fn(what);
-                return result;
-            }
-        };
-    const includeMatchers = ensureArray(include).map(getMatcher);
-    const excludeMatchers = ensureArray(exclude).map(getMatcher);
-    return function result(id) {
-        if (typeof id !== 'string')
-            return false;
-        if (/\0/.test(id))
-            return false;
-        const pathId = normalizePath(id);
-        for (let i = 0; i < excludeMatchers.length; ++i) {
-            const matcher = excludeMatchers[i];
-            if (matcher.test(pathId))
-                return false;
-        }
-        for (let i = 0; i < includeMatchers.length; ++i) {
-            const matcher = includeMatchers[i];
-            if (matcher.test(pathId))
-                return true;
-        }
-        return !includeMatchers.length;
-    };
-};
-
-const reservedWords = 'break case class catch const continue debugger default delete do else export extends finally for function if import in instanceof let new return super switch this throw try typeof var void while with yield enum await implements package protected static interface private public';
-const builtins = 'arguments Infinity NaN undefined null true false eval uneval isFinite isNaN parseFloat parseInt decodeURI decodeURIComponent encodeURI encodeURIComponent escape unescape Object Function Boolean Symbol Error EvalError InternalError RangeError ReferenceError SyntaxError TypeError URIError Number Math Date String RegExp Array Int8Array Uint8Array Uint8ClampedArray Int16Array Uint16Array Int32Array Uint32Array Float32Array Float64Array Map Set WeakMap WeakSet SIMD ArrayBuffer DataView JSON Promise Generator GeneratorFunction Reflect Proxy Intl';
-const forbiddenIdentifiers = new Set(`${reservedWords} ${builtins}`.split(' '));
-forbiddenIdentifiers.add('');
-const makeLegalIdentifier = function makeLegalIdentifier(str) {
-    let identifier = str
-        .replace(/-(\w)/g, (_, letter) => letter.toUpperCase())
-        .replace(/[^$_a-zA-Z0-9]/g, '_');
-    if (/\d/.test(identifier[0]) || forbiddenIdentifiers.has(identifier)) {
-        identifier = `_${identifier}`;
-    }
-    return identifier || '_';
-};
-
-var version$1 = "16.0.3";
-var peerDependencies$1 = {
-	rollup: "^2.78.0||^3.0.0||^4.0.0"
-};
-
-util$2.promisify(fs$2.access);
-const readFile$1 = util$2.promisify(fs$2.readFile);
-const realpath = util$2.promisify(fs$2.realpath);
-const stat = util$2.promisify(fs$2.stat);
-async function fileExists(filePath) {
-    try {
-        const res = await stat(filePath);
-        return res.isFile();
-    }
-    catch {
-        return false;
-    }
-}
-async function resolveSymlink$1(path) {
-    return (await fileExists(path)) ? realpath(path) : path;
-}
-
-const onError = (error) => {
-  if (error.code === 'ENOENT') {
-    return false;
-  }
-  throw error;
-};
-
-const makeCache = (fn) => {
-  const cache = new Map();
-  const wrapped = async (param, done) => {
-    if (cache.has(param) === false) {
-      cache.set(
-        param,
-        fn(param).catch((err) => {
-          cache.delete(param);
-          throw err;
-        })
-      );
-    }
-
-    try {
-      const result = cache.get(param);
-      const value = await result;
-      return done(null, value);
-    } catch (error) {
-      return done(error);
-    }
-  };
-
-  wrapped.clear = () => cache.clear();
-
-  return wrapped;
-};
-
-const isDirCached = makeCache(async (file) => {
-  try {
-    const stats = await stat(file);
-    return stats.isDirectory();
-  } catch (error) {
-    return onError(error);
-  }
-});
-
-const isFileCached = makeCache(async (file) => {
-  try {
-    const stats = await stat(file);
-    return stats.isFile();
-  } catch (error) {
-    return onError(error);
-  }
-});
-
-const readCachedFile = makeCache(readFile$1);
-
-function handleDeprecatedOptions(opts) {
-  const warnings = [];
-
-  if (opts.customResolveOptions) {
-    const { customResolveOptions } = opts;
-    if (customResolveOptions.moduleDirectory) {
-      // eslint-disable-next-line no-param-reassign
-      opts.moduleDirectories = Array.isArray(customResolveOptions.moduleDirectory)
-        ? customResolveOptions.moduleDirectory
-        : [customResolveOptions.moduleDirectory];
-
-      warnings.push(
-        'node-resolve: The `customResolveOptions.moduleDirectory` option has been deprecated. Use `moduleDirectories`, which must be an array.'
-      );
-    }
-
-    if (customResolveOptions.preserveSymlinks) {
-      throw new Error(
-        'node-resolve: `customResolveOptions.preserveSymlinks` is no longer an option. We now always use the rollup `preserveSymlinks` option.'
-      );
-    }
-
-    [
-      'basedir',
-      'package',
-      'extensions',
-      'includeCoreModules',
-      'readFile',
-      'isFile',
-      'isDirectory',
-      'realpath',
-      'packageFilter',
-      'pathFilter',
-      'paths',
-      'packageIterator'
-    ].forEach((resolveOption) => {
-      if (customResolveOptions[resolveOption]) {
-        throw new Error(
-          `node-resolve: \`customResolveOptions.${resolveOption}\` is no longer an option. If you need this, please open an issue.`
-        );
-      }
-    });
-  }
-
-  return { warnings };
-}
-
-// returns the imported package name for bare module imports
-function getPackageName(id) {
-  if (id.startsWith('.') || id.startsWith('/')) {
-    return null;
-  }
-
-  const split = id.split('/');
-
-  // @my-scope/my-package/foo.js -> @my-scope/my-package
-  // @my-scope/my-package -> @my-scope/my-package
-  if (split[0][0] === '@') {
-    return `${split[0]}/${split[1]}`;
-  }
-
-  // my-package/foo.js -> my-package
-  // my-package -> my-package
-  return split[0];
-}
-
-function getMainFields(options) {
-  let mainFields;
-  if (options.mainFields) {
-    ({ mainFields } = options);
-  } else {
-    mainFields = ['module', 'main'];
-  }
-  if (options.browser && mainFields.indexOf('browser') === -1) {
-    return ['browser'].concat(mainFields);
-  }
-  if (!mainFields.length) {
-    throw new Error('Please ensure at least one `mainFields` value is specified');
-  }
-  return mainFields;
-}
-
-function getPackageInfo(options) {
-  const {
-    cache,
-    extensions,
-    pkg,
-    mainFields,
-    preserveSymlinks,
-    useBrowserOverrides,
-    rootDir,
-    ignoreSideEffectsForRoot
-  } = options;
-  let { pkgPath } = options;
-
-  if (cache.has(pkgPath)) {
-    return cache.get(pkgPath);
-  }
-
-  // browserify/resolve doesn't realpath paths returned in its packageFilter callback
-  if (!preserveSymlinks) {
-    pkgPath = fs$2.realpathSync(pkgPath);
-  }
-
-  const pkgRoot = require$$0$1.dirname(pkgPath);
-
-  const packageInfo = {
-    // copy as we are about to munge the `main` field of `pkg`.
-    packageJson: { ...pkg },
-
-    // path to package.json file
-    packageJsonPath: pkgPath,
-
-    // directory containing the package.json
-    root: pkgRoot,
-
-    // which main field was used during resolution of this module (main, module, or browser)
-    resolvedMainField: 'main',
-
-    // whether the browser map was used to resolve the entry point to this module
-    browserMappedMain: false,
-
-    // the entry point of the module with respect to the selected main field and any
-    // relevant browser mappings.
-    resolvedEntryPoint: ''
-  };
-
-  let overriddenMain = false;
-  for (let i = 0; i < mainFields.length; i++) {
-    const field = mainFields[i];
-    if (typeof pkg[field] === 'string') {
-      pkg.main = pkg[field];
-      packageInfo.resolvedMainField = field;
-      overriddenMain = true;
-      break;
-    }
-  }
-
-  const internalPackageInfo = {
-    cachedPkg: pkg,
-    hasModuleSideEffects: () => null,
-    hasPackageEntry: overriddenMain !== false || mainFields.indexOf('main') !== -1,
-    packageBrowserField:
-      useBrowserOverrides &&
-      typeof pkg.browser === 'object' &&
-      Object.keys(pkg.browser).reduce((browser, key) => {
-        let resolved = pkg.browser[key];
-        if (resolved && resolved[0] === '.') {
-          resolved = require$$0$1.resolve(pkgRoot, resolved);
-        }
-        /* eslint-disable no-param-reassign */
-        browser[key] = resolved;
-        if (key[0] === '.') {
-          const absoluteKey = require$$0$1.resolve(pkgRoot, key);
-          browser[absoluteKey] = resolved;
-          if (!require$$0$1.extname(key)) {
-            extensions.reduce((subBrowser, ext) => {
-              subBrowser[absoluteKey + ext] = subBrowser[key];
-              return subBrowser;
-            }, browser);
-          }
-        }
-        return browser;
-      }, {}),
-    packageInfo
-  };
-
-  const browserMap = internalPackageInfo.packageBrowserField;
-  if (
-    useBrowserOverrides &&
-    typeof pkg.browser === 'object' &&
-    // eslint-disable-next-line no-prototype-builtins
-    browserMap.hasOwnProperty(pkg.main)
-  ) {
-    packageInfo.resolvedEntryPoint = browserMap[pkg.main];
-    packageInfo.browserMappedMain = true;
-  } else {
-    // index.node is technically a valid default entrypoint as well...
-    packageInfo.resolvedEntryPoint = require$$0$1.resolve(pkgRoot, pkg.main || 'index.js');
-    packageInfo.browserMappedMain = false;
-  }
-
-  if (!ignoreSideEffectsForRoot || rootDir !== pkgRoot) {
-    const packageSideEffects = pkg.sideEffects;
-    if (typeof packageSideEffects === 'boolean') {
-      internalPackageInfo.hasModuleSideEffects = () => packageSideEffects;
-    } else if (Array.isArray(packageSideEffects)) {
-      const finalPackageSideEffects = packageSideEffects.map((sideEffect) => {
-        /*
-         * The array accepts simple glob patterns to the relevant files... Patterns like .css, which do not include a /, will be treated like **\/.css.
-         * https://webpack.js.org/guides/tree-shaking/
-         */
-        if (sideEffect.includes('/')) {
-          return sideEffect;
-        }
-        return `**/${sideEffect}`;
-      });
-      internalPackageInfo.hasModuleSideEffects = createFilter(finalPackageSideEffects, null, {
-        resolve: pkgRoot
-      });
-    }
-  }
-
-  cache.set(pkgPath, internalPackageInfo);
-  return internalPackageInfo;
-}
-
-function normalizeInput(input) {
-  if (Array.isArray(input)) {
-    return input;
-  } else if (typeof input === 'object') {
-    return Object.values(input);
-  }
-
-  // otherwise it's a string
-  return [input];
-}
-
-/* eslint-disable no-await-in-loop */
-function isModuleDir(current, moduleDirs) {
-    return moduleDirs.some((dir) => current.endsWith(dir));
-}
-async function findPackageJson(base, moduleDirs) {
-    const { root } = require$$0$1.parse(base);
-    let current = base;
-    while (current !== root && !isModuleDir(current, moduleDirs)) {
-        const pkgJsonPath = require$$0$1.join(current, 'package.json');
-        if (await fileExists(pkgJsonPath)) {
-            const pkgJsonString = fs$2.readFileSync(pkgJsonPath, 'utf-8');
-            return { pkgJson: JSON.parse(pkgJsonString), pkgPath: current, pkgJsonPath };
-        }
-        current = require$$0$1.resolve(current, '..');
-    }
-    return null;
-}
-function isUrl(str) {
-    try {
-        return !!new URL(str);
-    }
-    catch (_) {
-        return false;
-    }
-}
-/**
- * Conditions is an export object where all keys are conditions like 'node' (aka do not with '.')
- */
-function isConditions(exports) {
-    return typeof exports === 'object' && Object.keys(exports).every((k) => !k.startsWith('.'));
-}
-/**
- * Mappings is an export object where all keys start with '.
- */
-function isMappings(exports) {
-    return typeof exports === 'object' && !isConditions(exports);
-}
-/**
- * Check for mixed exports, which are exports where some keys start with '.' and some do not
- */
-function isMixedExports(exports) {
-    const keys = Object.keys(exports);
-    return keys.some((k) => k.startsWith('.')) && keys.some((k) => !k.startsWith('.'));
-}
-function createBaseErrorMsg(importSpecifier, importer) {
-    return `Could not resolve import "${importSpecifier}" in ${importer}`;
-}
-function createErrorMsg(context, reason, isImports) {
-    const { importSpecifier, importer, pkgJsonPath } = context;
-    const base = createBaseErrorMsg(importSpecifier, importer);
-    const field = isImports ? 'imports' : 'exports';
-    return `${base} using ${field} defined in ${pkgJsonPath}.${reason ? ` ${reason}` : ''}`;
-}
-class ResolveError extends Error {
-}
-class InvalidConfigurationError extends ResolveError {
-    constructor(context, reason) {
-        super(createErrorMsg(context, `Invalid "exports" field. ${reason}`));
-    }
-}
-class InvalidModuleSpecifierError extends ResolveError {
-    constructor(context, isImports, reason) {
-        super(createErrorMsg(context, reason, isImports));
-    }
-}
-class InvalidPackageTargetError extends ResolveError {
-    constructor(context, reason) {
-        super(createErrorMsg(context, reason));
-    }
-}
-
-/* eslint-disable no-await-in-loop, no-undefined */
-/**
- * Check for invalid path segments
- */
-function includesInvalidSegments(pathSegments, moduleDirs) {
-    const invalidSegments = ['', '.', '..', ...moduleDirs];
-    // contains any "", ".", "..", or "node_modules" segments, including percent encoded variants
-    return pathSegments.some((v) => invalidSegments.includes(v) || invalidSegments.includes(decodeURI(v)));
-}
-async function resolvePackageTarget(context, { target, patternMatch, isImports }) {
-    // If target is a String, then
-    if (typeof target === 'string') {
-        // If target does not start with "./", then
-        if (!target.startsWith('./')) {
-            // If isImports is false, or if target starts with "../" or "/", or if target is a valid URL, then
-            if (!isImports || ['/', '../'].some((p) => target.startsWith(p)) || isUrl(target)) {
-                // Throw an Invalid Package Target error.
-                throw new InvalidPackageTargetError(context, `Invalid mapping: "${target}".`);
-            }
-            // If patternMatch is a String, then
-            if (typeof patternMatch === 'string') {
-                // Return PACKAGE_RESOLVE(target with every instance of "*" replaced by patternMatch, packageURL + "/")
-                const result = await context.resolveId(target.replace(/\*/g, patternMatch), context.pkgURL.href);
-                return result ? url$2.pathToFileURL(result.location).href : null;
-            }
-            // Return PACKAGE_RESOLVE(target, packageURL + "/").
-            const result = await context.resolveId(target, context.pkgURL.href);
-            return result ? url$2.pathToFileURL(result.location).href : null;
-        }
-        // TODO: Drop if we do not support Node <= 16 anymore
-        // This behavior was removed in Node 17 (deprecated in Node 14), see DEP0148
-        if (context.allowExportsFolderMapping) {
-            target = target.replace(/\/$/, '/*');
-        }
-        // If target split on "/" or "\"
-        {
-            const pathSegments = target.split(/\/|\\/);
-            // after the first "." segment
-            const firstDot = pathSegments.indexOf('.');
-            firstDot !== -1 && pathSegments.slice(firstDot);
-            if (firstDot !== -1 &&
-                firstDot < pathSegments.length - 1 &&
-                includesInvalidSegments(pathSegments.slice(firstDot + 1), context.moduleDirs)) {
-                throw new InvalidPackageTargetError(context, `Invalid mapping: "${target}".`);
-            }
-        }
-        // Let resolvedTarget be the URL resolution of the concatenation of packageURL and target.
-        const resolvedTarget = new URL(target, context.pkgURL);
-        // Assert: resolvedTarget is contained in packageURL.
-        if (!resolvedTarget.href.startsWith(context.pkgURL.href)) {
-            throw new InvalidPackageTargetError(context, `Resolved to ${resolvedTarget.href} which is outside package ${context.pkgURL.href}`);
-        }
-        // If patternMatch is null, then
-        if (!patternMatch) {
-            // Return resolvedTarget.
-            return resolvedTarget;
-        }
-        // If patternMatch split on "/" or "\" contains invalid segments
-        if (includesInvalidSegments(patternMatch.split(/\/|\\/), context.moduleDirs)) {
-            // throw an Invalid Module Specifier error.
-            throw new InvalidModuleSpecifierError(context);
-        }
-        // Return the URL resolution of resolvedTarget with every instance of "*" replaced with patternMatch.
-        return resolvedTarget.href.replace(/\*/g, patternMatch);
-    }
-    // Otherwise, if target is an Array, then
-    if (Array.isArray(target)) {
-        // If _target.length is zero, return null.
-        if (target.length === 0) {
-            return null;
-        }
-        let lastError = null;
-        // For each item in target, do
-        for (const item of target) {
-            // Let resolved be the result of PACKAGE_TARGET_RESOLVE of the item
-            // continuing the loop on any Invalid Package Target error.
-            try {
-                const resolved = await resolvePackageTarget(context, {
-                    target: item,
-                    patternMatch,
-                    isImports
-                });
-                // If resolved is undefined, continue the loop.
-                // Else Return resolved.
-                if (resolved !== undefined) {
-                    return resolved;
-                }
-            }
-            catch (error) {
-                if (!(error instanceof InvalidPackageTargetError)) {
-                    throw error;
-                }
-                else {
-                    lastError = error;
-                }
-            }
-        }
-        // Return or throw the last fallback resolution null return or error
-        if (lastError) {
-            throw lastError;
-        }
-        return null;
-    }
-    // Otherwise, if target is a non-null Object, then
-    if (target && typeof target === 'object') {
-        // For each property of target
-        for (const [key, value] of Object.entries(target)) {
-            // If exports contains any index property keys, as defined in ECMA-262 6.1.7 Array Index, throw an Invalid Package Configuration error.
-            // TODO: We do not check if the key is a number here...
-            // If key equals "default" or conditions contains an entry for the key, then
-            if (key === 'default' || context.conditions.includes(key)) {
-                // Let targetValue be the value of the property in target.
-                // Let resolved be the result of PACKAGE_TARGET_RESOLVE of the targetValue
-                const resolved = await resolvePackageTarget(context, {
-                    target: value,
-                    patternMatch,
-                    isImports
-                });
-                // If resolved is equal to undefined, continue the loop.
-                // Return resolved.
-                if (resolved !== undefined) {
-                    return resolved;
-                }
-            }
-        }
-        // Return undefined.
-        return undefined;
-    }
-    // Otherwise, if target is null, return null.
-    if (target === null) {
-        return null;
-    }
-    // Otherwise throw an Invalid Package Target error.
-    throw new InvalidPackageTargetError(context, `Invalid exports field.`);
-}
-
-/* eslint-disable no-await-in-loop */
-/**
- * Implementation of Node's `PATTERN_KEY_COMPARE` function
- */
-function nodePatternKeyCompare(keyA, keyB) {
-    // Let baseLengthA be the index of "*" in keyA plus one, if keyA contains "*", or the length of keyA otherwise.
-    const baseLengthA = keyA.includes('*') ? keyA.indexOf('*') + 1 : keyA.length;
-    // Let baseLengthB be the index of "*" in keyB plus one, if keyB contains "*", or the length of keyB otherwise.
-    const baseLengthB = keyB.includes('*') ? keyB.indexOf('*') + 1 : keyB.length;
-    // if baseLengthA is greater, return -1, if lower 1
-    const rval = baseLengthB - baseLengthA;
-    if (rval !== 0)
-        return rval;
-    // If keyA does not contain "*", return 1.
-    if (!keyA.includes('*'))
-        return 1;
-    // If keyB does not contain "*", return -1.
-    if (!keyB.includes('*'))
-        return -1;
-    // If the length of keyA is greater than the length of keyB, return -1.
-    // If the length of keyB is greater than the length of keyA, return 1.
-    // Else Return 0.
-    return keyB.length - keyA.length;
-}
-async function resolvePackageImportsExports(context, { matchKey, matchObj, isImports }) {
-    // If matchKey is a key of matchObj and does not contain "*", then
-    if (!matchKey.includes('*') && matchKey in matchObj) {
-        // Let target be the value of matchObj[matchKey].
-        const target = matchObj[matchKey];
-        // Return the result of PACKAGE_TARGET_RESOLVE(packageURL, target, null, isImports, conditions).
-        const resolved = await resolvePackageTarget(context, { target, patternMatch: '', isImports });
-        return resolved;
-    }
-    // Let expansionKeys be the list of keys of matchObj containing only a single "*"
-    const expansionKeys = Object.keys(matchObj)
-        // Assert: ends with "/" or contains only a single "*".
-        .filter((k) => k.endsWith('/') || k.includes('*'))
-        // sorted by the sorting function PATTERN_KEY_COMPARE which orders in descending order of specificity.
-        .sort(nodePatternKeyCompare);
-    // For each key expansionKey in expansionKeys, do
-    for (const expansionKey of expansionKeys) {
-        const indexOfAsterisk = expansionKey.indexOf('*');
-        // Let patternBase be the substring of expansionKey up to but excluding the first "*" character.
-        const patternBase = indexOfAsterisk === -1 ? expansionKey : expansionKey.substring(0, indexOfAsterisk);
-        // If matchKey starts with but is not equal to patternBase, then
-        if (matchKey.startsWith(patternBase) && matchKey !== patternBase) {
-            // Let patternTrailer be the substring of expansionKey from the index after the first "*" character.
-            const patternTrailer = indexOfAsterisk !== -1 ? expansionKey.substring(indexOfAsterisk + 1) : '';
-            // If patternTrailer has zero length,
-            if (patternTrailer.length === 0 ||
-                // or if matchKey ends with patternTrailer and the length of matchKey is greater than or equal to the length of expansionKey, then
-                (matchKey.endsWith(patternTrailer) && matchKey.length >= expansionKey.length)) {
-                // Let target be the value of matchObj[expansionKey].
-                const target = matchObj[expansionKey];
-                // Let patternMatch be the substring of matchKey starting at the index of the length of patternBase up to the length
-                // of matchKey minus the length of patternTrailer.
-                const patternMatch = matchKey.substring(patternBase.length, matchKey.length - patternTrailer.length);
-                // Return the result of PACKAGE_TARGET_RESOLVE
-                const resolved = await resolvePackageTarget(context, {
-                    target,
-                    patternMatch,
-                    isImports
-                });
-                return resolved;
-            }
-        }
-    }
-    throw new InvalidModuleSpecifierError(context, isImports);
-}
-
-/**
- * Implementation of PACKAGE_EXPORTS_RESOLVE
- */
-async function resolvePackageExports(context, subpath, exports) {
-    // If exports is an Object with both a key starting with "." and a key not starting with "."
-    if (isMixedExports(exports)) {
-        // throw an Invalid Package Configuration error.
-        throw new InvalidConfigurationError(context, 'All keys must either start with ./, or without one.');
-    }
-    // If subpath is equal to ".", then
-    if (subpath === '.') {
-        // Let mainExport be undefined.
-        let mainExport;
-        // If exports is a String or Array, or an Object containing no keys starting with ".", then
-        if (typeof exports === 'string' || Array.isArray(exports) || isConditions(exports)) {
-            // Set mainExport to exports
-            mainExport = exports;
-            // Otherwise if exports is an Object containing a "." property, then
-        }
-        else if (isMappings(exports)) {
-            // Set mainExport to exports["."]
-            mainExport = exports['.'];
-        }
-        // If mainExport is not undefined, then
-        if (mainExport) {
-            // Let resolved be the result of PACKAGE_TARGET_RESOLVE with target = mainExport
-            const resolved = await resolvePackageTarget(context, {
-                target: mainExport,
-                patternMatch: '',
-                isImports: false
-            });
-            // If resolved is not null or undefined, return resolved.
-            if (resolved) {
-                return resolved;
-            }
-        }
-        // Otherwise, if exports is an Object and all keys of exports start with ".", then
-    }
-    else if (isMappings(exports)) {
-        // Let resolved be the result of PACKAGE_IMPORTS_EXPORTS_RESOLVE
-        const resolvedMatch = await resolvePackageImportsExports(context, {
-            matchKey: subpath,
-            matchObj: exports,
-            isImports: false
-        });
-        // If resolved is not null or undefined, return resolved.
-        if (resolvedMatch) {
-            return resolvedMatch;
-        }
-    }
-    // Throw a Package Path Not Exported error.
-    throw new InvalidModuleSpecifierError(context);
-}
-
-async function resolvePackageImports({ importSpecifier, importer, moduleDirs, conditions, resolveId }) {
-    const result = await findPackageJson(importer, moduleDirs);
-    if (!result) {
-        throw new Error(`${createBaseErrorMsg(importSpecifier, importer)}. Could not find a parent package.json.`);
-    }
-    const { pkgPath, pkgJsonPath, pkgJson } = result;
-    const pkgURL = url$2.pathToFileURL(`${pkgPath}/`);
-    const context = {
-        importer,
-        importSpecifier,
-        moduleDirs,
-        pkgURL,
-        pkgJsonPath,
-        conditions,
-        resolveId
-    };
-    // Assert: specifier begins with "#".
-    if (!importSpecifier.startsWith('#')) {
-        throw new InvalidModuleSpecifierError(context, true, 'Invalid import specifier.');
-    }
-    // If specifier is exactly equal to "#" or starts with "#/", then
-    if (importSpecifier === '#' || importSpecifier.startsWith('#/')) {
-        // Throw an Invalid Module Specifier error.
-        throw new InvalidModuleSpecifierError(context, true, 'Invalid import specifier.');
-    }
-    const { imports } = pkgJson;
-    if (!imports) {
-        throw new InvalidModuleSpecifierError(context, true);
-    }
-    // Let packageURL be the result of LOOKUP_PACKAGE_SCOPE(parentURL).
-    // If packageURL is not null, then
-    return resolvePackageImportsExports(context, {
-        matchKey: importSpecifier,
-        matchObj: imports,
-        isImports: true
-    });
-}
-
-const resolveImportPath = util$2.promisify(resolve$1);
-const readFile = util$2.promisify(fs$2.readFile);
-
-async function getPackageJson(importer, pkgName, resolveOptions, moduleDirectories) {
-  if (importer) {
-    const selfPackageJsonResult = await findPackageJson(importer, moduleDirectories);
-    if (selfPackageJsonResult && selfPackageJsonResult.pkgJson.name === pkgName) {
-      // the referenced package name is the current package
-      return selfPackageJsonResult;
-    }
-  }
-
-  try {
-    const pkgJsonPath = await resolveImportPath(`${pkgName}/package.json`, resolveOptions);
-    const pkgJson = JSON.parse(await readFile(pkgJsonPath, 'utf-8'));
-    return { pkgJsonPath, pkgJson, pkgPath: require$$0$1.dirname(pkgJsonPath) };
-  } catch (_) {
-    return null;
-  }
-}
-
-async function resolveIdClassic({
-  importSpecifier,
-  packageInfoCache,
-  extensions,
-  mainFields,
-  preserveSymlinks,
-  useBrowserOverrides,
-  baseDir,
-  moduleDirectories,
-  modulePaths,
-  rootDir,
-  ignoreSideEffectsForRoot
-}) {
-  let hasModuleSideEffects = () => null;
-  let hasPackageEntry = true;
-  let packageBrowserField = false;
-  let packageInfo;
-
-  const filter = (pkg, pkgPath) => {
-    const info = getPackageInfo({
-      cache: packageInfoCache,
-      extensions,
-      pkg,
-      pkgPath,
-      mainFields,
-      preserveSymlinks,
-      useBrowserOverrides,
-      rootDir,
-      ignoreSideEffectsForRoot
-    });
-
-    ({ packageInfo, hasModuleSideEffects, hasPackageEntry, packageBrowserField } = info);
-
-    return info.cachedPkg;
-  };
-
-  const resolveOptions = {
-    basedir: baseDir,
-    readFile: readCachedFile,
-    isFile: isFileCached,
-    isDirectory: isDirCached,
-    extensions,
-    includeCoreModules: false,
-    moduleDirectory: moduleDirectories,
-    paths: modulePaths,
-    preserveSymlinks,
-    packageFilter: filter
-  };
-
-  let location;
-  try {
-    location = await resolveImportPath(importSpecifier, resolveOptions);
-  } catch (error) {
-    if (error.code !== 'MODULE_NOT_FOUND') {
-      throw error;
-    }
-    return null;
-  }
-
-  return {
-    location: preserveSymlinks ? location : await resolveSymlink$1(location),
-    hasModuleSideEffects,
-    hasPackageEntry,
-    packageBrowserField,
-    packageInfo
-  };
-}
-
-async function resolveWithExportMap({
-  importer,
-  importSpecifier,
-  exportConditions,
-  packageInfoCache,
-  extensions,
-  mainFields,
-  preserveSymlinks,
-  useBrowserOverrides,
-  baseDir,
-  moduleDirectories,
-  modulePaths,
-  rootDir,
-  ignoreSideEffectsForRoot,
-  allowExportsFolderMapping
-}) {
-  if (importSpecifier.startsWith('#')) {
-    // this is a package internal import, resolve using package imports field
-    const resolveResult = await resolvePackageImports({
-      importSpecifier,
-      importer,
-      moduleDirs: moduleDirectories,
-      conditions: exportConditions,
-      // Resolve targets of "imports" mappings using the same algorithm
-      // we use for normal specifiers: try export maps first and then
-      // fall back to classic resolution. This is important for cases
-      // like "#foo/*": "@scope/pkg/*" where the target package relies
-      // on "exports" to expose subpaths. Using the classic resolver
-      // alone would fail to find those subpaths.
-      resolveId(id /* , parent*/) {
-        return resolveImportSpecifiers({
-          importer,
-          importSpecifierList: [id],
-          exportConditions,
-          // pass-through of the rest of the context
-          packageInfoCache,
-          extensions,
-          mainFields,
-          preserveSymlinks,
-          useBrowserOverrides,
-          baseDir,
-          moduleDirectories,
-          modulePaths,
-          rootDir,
-          ignoreSideEffectsForRoot,
-          allowExportsFolderMapping
-        });
-      }
-    });
-
-    if (resolveResult == null) {
-      // When the target of an "imports" mapping cannot be resolved,
-      // surface a proper resolve error instead of throwing from
-      // fileURLToPath(null).
-      throw new ResolveError(
-        `Could not resolve import "${importSpecifier}" in ${importer} using imports.`
-      );
-    }
-    const location = url$2.fileURLToPath(resolveResult);
-    return {
-      location: preserveSymlinks ? location : await resolveSymlink$1(location),
-      hasModuleSideEffects: () => null,
-      hasPackageEntry: true,
-      packageBrowserField: false,
-      // eslint-disable-next-line no-undefined
-      packageInfo: undefined
-    };
-  }
-
-  const pkgName = getPackageName(importSpecifier);
-  if (pkgName) {
-    // it's a bare import, find the package.json and resolve using package exports if available
-    let hasModuleSideEffects = () => null;
-    let hasPackageEntry = true;
-    let packageBrowserField = false;
-    let packageInfo;
-
-    const filter = (pkg, pkgPath) => {
-      const info = getPackageInfo({
-        cache: packageInfoCache,
-        extensions,
-        pkg,
-        pkgPath,
-        mainFields,
-        preserveSymlinks,
-        useBrowserOverrides,
-        rootDir,
-        ignoreSideEffectsForRoot
-      });
-
-      ({ packageInfo, hasModuleSideEffects, hasPackageEntry, packageBrowserField } = info);
-
-      return info.cachedPkg;
-    };
-
-    const resolveOptions = {
-      basedir: baseDir,
-      readFile: readCachedFile,
-      isFile: isFileCached,
-      isDirectory: isDirCached,
-      extensions,
-      includeCoreModules: false,
-      moduleDirectory: moduleDirectories,
-      paths: modulePaths,
-      preserveSymlinks,
-      packageFilter: filter
-    };
-
-    const result = await getPackageJson(importer, pkgName, resolveOptions, moduleDirectories);
-
-    if (result && result.pkgJson.exports) {
-      const { pkgJson, pkgJsonPath } = result;
-      const subpath =
-        pkgName === importSpecifier ? '.' : `.${importSpecifier.substring(pkgName.length)}`;
-      const pkgDr = pkgJsonPath.replace('package.json', '');
-      const pkgURL = url$2.pathToFileURL(pkgDr);
-
-      const context = {
-        importer,
-        importSpecifier,
-        moduleDirs: moduleDirectories,
-        pkgURL,
-        pkgJsonPath,
-        allowExportsFolderMapping,
-        conditions: exportConditions
-      };
-      const resolvedPackageExport = await resolvePackageExports(context, subpath, pkgJson.exports);
-      const location = url$2.fileURLToPath(resolvedPackageExport);
-      if (location) {
-        return {
-          location: preserveSymlinks ? location : await resolveSymlink$1(location),
-          hasModuleSideEffects,
-          hasPackageEntry,
-          packageBrowserField,
-          packageInfo
-        };
-      }
-    }
-  }
-
-  return null;
-}
-
-async function resolveWithClassic({
-  importer,
-  importSpecifierList,
-  exportConditions,
-  warn,
-  packageInfoCache,
-  extensions,
-  mainFields,
-  preserveSymlinks,
-  useBrowserOverrides,
-  baseDir,
-  moduleDirectories,
-  modulePaths,
-  rootDir,
-  ignoreSideEffectsForRoot
-}) {
-  for (let i = 0; i < importSpecifierList.length; i++) {
-    // eslint-disable-next-line no-await-in-loop
-    const result = await resolveIdClassic({
-      importSpecifier: importSpecifierList[i],
-      packageInfoCache,
-      extensions,
-      mainFields,
-      preserveSymlinks,
-      useBrowserOverrides,
-      baseDir,
-      moduleDirectories,
-      modulePaths,
-      rootDir,
-      ignoreSideEffectsForRoot
-    });
-
-    if (result) {
-      return result;
-    }
-  }
-
-  return null;
-}
-
-// Resolves to the module if found or `null`.
-// The first import specifier will first be attempted with the exports algorithm.
-// If this is unsuccessful because export maps are not being used, then all of `importSpecifierList`
-// will be tried with the classic resolution algorithm
-async function resolveImportSpecifiers({
-  importer,
-  importSpecifierList,
-  exportConditions,
-  warn,
-  packageInfoCache,
-  extensions,
-  mainFields,
-  preserveSymlinks,
-  useBrowserOverrides,
-  baseDir,
-  moduleDirectories,
-  modulePaths,
-  rootDir,
-  ignoreSideEffectsForRoot,
-  allowExportsFolderMapping
-}) {
-  try {
-    const exportMapRes = await resolveWithExportMap({
-      importer,
-      importSpecifier: importSpecifierList[0],
-      exportConditions,
-      packageInfoCache,
-      extensions,
-      mainFields,
-      preserveSymlinks,
-      useBrowserOverrides,
-      baseDir,
-      moduleDirectories,
-      modulePaths,
-      rootDir,
-      ignoreSideEffectsForRoot,
-      allowExportsFolderMapping
-    });
-    if (exportMapRes) return exportMapRes;
-  } catch (error) {
-    if (error instanceof ResolveError) {
-      warn(error);
-      return null;
-    }
-    throw error;
-  }
-
-  // package has no imports or exports, use classic node resolve
-  return resolveWithClassic({
-    importer,
-    importSpecifierList,
-    exportConditions,
-    warn,
-    packageInfoCache,
-    extensions,
-    mainFields,
-    preserveSymlinks,
-    useBrowserOverrides,
-    baseDir,
-    moduleDirectories,
-    modulePaths,
-    rootDir,
-    ignoreSideEffectsForRoot
-  });
-}
-
-const versionRegexp = /\^(\d+\.\d+\.\d+)/g;
-
-function validateVersion$1(actualVersion, peerDependencyVersion) {
-  let minMajor = Infinity;
-  let minMinor = Infinity;
-  let minPatch = Infinity;
-  let foundVersion;
-  // eslint-disable-next-line no-cond-assign
-  while ((foundVersion = versionRegexp.exec(peerDependencyVersion))) {
-    const [foundMajor, foundMinor, foundPatch] = foundVersion[1].split('.').map(Number);
-    if (foundMajor < minMajor) {
-      minMajor = foundMajor;
-      minMinor = foundMinor;
-      minPatch = foundPatch;
-    }
-  }
-  if (!actualVersion) {
-    throw new Error(
-      `Insufficient Rollup version: "@rollup/plugin-node-resolve" requires at least rollup@${minMajor}.${minMinor}.${minPatch}.`
-    );
-  }
-  const [major, minor, patch] = actualVersion.split('.').map(Number);
-  if (
-    major < minMajor ||
-    (major === minMajor && (minor < minMinor || (minor === minMinor && patch < minPatch)))
-  ) {
-    throw new Error(
-      `Insufficient rollup version: "@rollup/plugin-node-resolve" requires at least rollup@${minMajor}.${minMinor}.${minPatch} but found rollup@${actualVersion}.`
-    );
-  }
-}
-
-/* eslint-disable no-param-reassign, no-shadow, no-undefined */
-
-const ES6_BROWSER_EMPTY = '\0node-resolve:empty.js';
-const deepFreeze = (object) => {
-  Object.freeze(object);
-
-  for (const value of Object.values(object)) {
-    if (typeof value === 'object' && !Object.isFrozen(value)) {
-      deepFreeze(value);
-    }
-  }
-
-  return object;
-};
-
-const baseConditions = ['default', 'module'];
-const baseConditionsEsm = [...baseConditions, 'import'];
-const baseConditionsCjs = [...baseConditions, 'require'];
-const defaults = {
-  dedupe: [],
-  // It's important that .mjs is listed before .js so that Rollup will interpret npm modules
-  // which deploy both ESM .mjs and CommonJS .js files as ESM.
-  extensions: ['.mjs', '.js', '.json', '.node'],
-  resolveOnly: [],
-  moduleDirectories: ['node_modules'],
-  modulePaths: [],
-  ignoreSideEffectsForRoot: false,
-  // TODO: set to false in next major release or remove
-  allowExportsFolderMapping: true
-};
-const nodeImportPrefix = /^node:/;
-
-deepFreeze(deepMerge({}, defaults));
-
-function nodeResolve(opts = {}) {
-  const { warnings } = handleDeprecatedOptions(opts);
-
-  const options = { ...defaults, ...opts };
-  const { extensions, jail, moduleDirectories, modulePaths, ignoreSideEffectsForRoot } = options;
-  const exportConditions = options.exportConditions || [];
-  const devProdCondition =
-    exportConditions.includes('development') || exportConditions.includes('production')
-      ? []
-      : [
-          process.env.NODE_ENV && process.env.NODE_ENV !== 'production'
-            ? 'development'
-            : 'production'
-        ];
-  const conditionsEsm = [...baseConditionsEsm, ...exportConditions, ...devProdCondition];
-  const conditionsCjs = [...baseConditionsCjs, ...exportConditions, ...devProdCondition];
-  const packageInfoCache = new Map();
-  const idToPackageInfo = new Map();
-  const mainFields = getMainFields(options);
-  const useBrowserOverrides = mainFields.indexOf('browser') !== -1;
-  const isPreferBuiltinsSet = Object.prototype.hasOwnProperty.call(options, 'preferBuiltins');
-  const preferBuiltins = isPreferBuiltinsSet ? options.preferBuiltins : true;
-  const rootDir = require$$0$1.resolve(options.rootDir || process.cwd());
-  let { dedupe } = options;
-  let rollupOptions;
-
-  if (moduleDirectories.some((name) => name.includes('/'))) {
-    throw new Error(
-      '`moduleDirectories` option must only contain directory names. If you want to load modules from somewhere not supported by the default module resolution algorithm, see `modulePaths`.'
-    );
-  }
-
-  if (typeof dedupe !== 'function') {
-    dedupe = (importee) =>
-      options.dedupe.includes(importee) || options.dedupe.includes(getPackageName(importee));
-  }
-
-  // creates a function from the patterns to test if a particular module should be bundled.
-  const allowPatterns = (patterns) => {
-    const regexPatterns = patterns.map((pattern) => {
-      if (pattern instanceof RegExp) {
-        return pattern;
-      }
-      const normalized = pattern.replace(/[\\^$*+?.()|[\]{}]/g, '\\$&');
-      return new RegExp(`^${normalized}$`);
-    });
-    return (id) => !regexPatterns.length || regexPatterns.some((pattern) => pattern.test(id));
-  };
-
-  const resolveOnly =
-    typeof options.resolveOnly === 'function'
-      ? options.resolveOnly
-      : allowPatterns(options.resolveOnly);
-
-  const browserMapCache = new Map();
-  let preserveSymlinks;
-
-  const resolveLikeNode = async (context, importee, importer, custom) => {
-    // strip query params from import
-    const [importPath, params] = importee.split('?');
-    const importSuffix = `${params ? `?${params}` : ''}`;
-    importee = importPath;
-
-    const baseDir = !importer || dedupe(importee) ? rootDir : require$$0$1.dirname(importer);
-
-    // https://github.com/defunctzombie/package-browser-field-spec
-    const browser = browserMapCache.get(importer);
-    if (useBrowserOverrides && browser) {
-      const resolvedImportee = require$$0$1.resolve(baseDir, importee);
-      if (browser[importee] === false || browser[resolvedImportee] === false) {
-        return { id: ES6_BROWSER_EMPTY };
-      }
-      const browserImportee =
-        (importee[0] !== '.' && browser[importee]) ||
-        browser[resolvedImportee] ||
-        browser[`${resolvedImportee}.js`] ||
-        browser[`${resolvedImportee}.json`];
-      if (browserImportee) {
-        importee = browserImportee;
-      }
-    }
-
-    const parts = importee.split(/[/\\]/);
-    let id = parts.shift();
-    let isRelativeImport = false;
-
-    if (id[0] === '@' && parts.length > 0) {
-      // scoped packages
-      id += `/${parts.shift()}`;
-    } else if (id[0] === '.') {
-      // an import relative to the parent dir of the importer
-      id = require$$0$1.resolve(baseDir, importee);
-      isRelativeImport = true;
-    }
-
-    // if it's not a relative import, and it's not requested, reject it.
-    if (!isRelativeImport && !resolveOnly(id)) {
-      if (normalizeInput(rollupOptions.input).includes(importee)) {
-        return null;
-      }
-      return false;
-    }
-
-    const importSpecifierList = [importee];
-
-    if (importer === undefined && importee[0] && !importee[0].match(/^\.?\.?\//)) {
-      // For module graph roots (i.e. when importer is undefined), we
-      // need to handle 'path fragments` like `foo/bar` that are commonly
-      // found in rollup config files. If importee doesn't look like a
-      // relative or absolute path, we make it relative and attempt to
-      // resolve it.
-      importSpecifierList.push(`./${importee}`);
-    }
-
-    // TypeScript files may import '.mjs' or '.cjs' to refer to either '.mts' or '.cts'.
-    // They may also import .js to refer to either .ts or .tsx, and .jsx to refer to .tsx.
-    if (importer && /\.(ts|mts|cts|tsx)$/.test(importer)) {
-      for (const [importeeExt, resolvedExt] of [
-        ['.js', '.ts'],
-        ['.js', '.tsx'],
-        ['.jsx', '.tsx'],
-        ['.mjs', '.mts'],
-        ['.cjs', '.cts']
-      ]) {
-        if (importee.endsWith(importeeExt) && extensions.includes(resolvedExt)) {
-          importSpecifierList.push(importee.slice(0, -importeeExt.length) + resolvedExt);
-        }
-      }
-    }
-
-    const warn = (...args) => context.warn(...args);
-    const isRequire = custom && custom['node-resolve'] && custom['node-resolve'].isRequire;
-    const exportConditions = isRequire ? conditionsCjs : conditionsEsm;
-    if (useBrowserOverrides && !exportConditions.includes('browser'))
-      exportConditions.push('browser');
-
-    const resolvedWithoutBuiltins = await resolveImportSpecifiers({
-      importer,
-      importSpecifierList,
-      exportConditions,
-      warn,
-      packageInfoCache,
-      extensions,
-      mainFields,
-      preserveSymlinks,
-      useBrowserOverrides,
-      baseDir,
-      moduleDirectories,
-      modulePaths,
-      rootDir,
-      ignoreSideEffectsForRoot,
-      allowExportsFolderMapping: options.allowExportsFolderMapping
-    });
-
-    const importeeIsBuiltin = module$3.builtinModules.includes(importee.replace(nodeImportPrefix, ''));
-    const preferImporteeIsBuiltin =
-      typeof preferBuiltins === 'function' ? preferBuiltins(importee) : preferBuiltins;
-    const resolved =
-      importeeIsBuiltin && preferImporteeIsBuiltin
-        ? {
-            packageInfo: undefined,
-            hasModuleSideEffects: () => null,
-            hasPackageEntry: true,
-            packageBrowserField: false
-          }
-        : resolvedWithoutBuiltins;
-    if (!resolved) {
-      return null;
-    }
-
-    const { packageInfo, hasModuleSideEffects, hasPackageEntry, packageBrowserField } = resolved;
-    let { location } = resolved;
-    if (packageBrowserField) {
-      if (Object.prototype.hasOwnProperty.call(packageBrowserField, location)) {
-        if (!packageBrowserField[location]) {
-          browserMapCache.set(location, packageBrowserField);
-          return { id: ES6_BROWSER_EMPTY };
-        }
-        location = packageBrowserField[location];
-      }
-      browserMapCache.set(location, packageBrowserField);
-    }
-
-    if (hasPackageEntry && !preserveSymlinks) {
-      const exists = await fileExists(location);
-      if (exists) {
-        location = await realpath(location);
-      }
-    }
-
-    idToPackageInfo.set(location, packageInfo);
-
-    if (hasPackageEntry) {
-      if (importeeIsBuiltin && preferImporteeIsBuiltin) {
-        if (!isPreferBuiltinsSet && resolvedWithoutBuiltins && resolved !== importee) {
-          context.warn({
-            message:
-              `preferring built-in module '${importee}' over local alternative at '${resolvedWithoutBuiltins.location}', pass 'preferBuiltins: false' to disable this behavior or 'preferBuiltins: true' to disable this warning.` +
-              `or passing a function to 'preferBuiltins' to provide more fine-grained control over which built-in modules to prefer.`,
-            pluginCode: 'PREFER_BUILTINS'
-          });
-        }
-        return false;
-      } else if (jail && location.indexOf(require$$0$1.normalize(jail.trim(require$$0$1.sep))) !== 0) {
-        return null;
-      }
-    }
-
-    if (options.modulesOnly && (await fileExists(location))) {
-      const code = await readFile$1(location, 'utf-8');
-      if (isModule(code)) {
-        return {
-          id: `${location}${importSuffix}`,
-          moduleSideEffects: hasModuleSideEffects(location)
-        };
-      }
-      return null;
-    }
-    return {
-      id: `${location}${importSuffix}`,
-      moduleSideEffects: hasModuleSideEffects(location)
-    };
-  };
-
-  return {
-    name: 'node-resolve',
-
-    version: version$1,
-
-    buildStart(buildOptions) {
-      validateVersion$1(this.meta.rollupVersion, peerDependencies$1.rollup);
-      rollupOptions = buildOptions;
-
-      for (const warning of warnings) {
-        this.warn(warning);
-      }
-
-      ({ preserveSymlinks } = buildOptions);
-    },
-
-    generateBundle() {
-      readCachedFile.clear();
-      isFileCached.clear();
-      isDirCached.clear();
-    },
-
-    resolveId: {
-      order: 'post',
-      async handler(importee, importer, resolveOptions) {
-        if (importee === ES6_BROWSER_EMPTY) {
-          return importee;
-        }
-        // ignore IDs with null character, these belong to other plugins
-        if (importee && importee.includes('\0')) return null;
-
-        const { custom = {} } = resolveOptions;
-        const { 'node-resolve': { resolved: alreadyResolved } = {} } = custom;
-        if (alreadyResolved) {
-          return alreadyResolved;
-        }
-
-        if (importer && importer.includes('\0')) {
-          importer = undefined;
-        }
-
-        const resolved = await resolveLikeNode(this, importee, importer, custom);
-        if (resolved) {
-          // This way, plugins may attach additional meta information to the
-          // resolved id or make it external. We do not skip node-resolve here
-          // because another plugin might again use `this.resolve` in its
-          // `resolveId` hook, in which case we want to add the correct
-          // `moduleSideEffects` information.
-          const resolvedResolved = await this.resolve(resolved.id, importer, {
-            ...resolveOptions,
-            skipSelf: false,
-            custom: { ...custom, 'node-resolve': { ...custom['node-resolve'], resolved, importee } }
-          });
-          if (resolvedResolved) {
-            // Handle plugins that manually make the result external
-            if (resolvedResolved.external) {
-              return false;
-            }
-            // Allow other plugins to take over resolution. Rollup core will not
-            // change the id if it corresponds to an existing file
-            if (resolvedResolved.id !== resolved.id) {
-              return resolvedResolved;
-            }
-            // Pass on meta information added by other plugins
-            return { ...resolved, meta: resolvedResolved.meta };
-          }
-        }
-        return resolved;
-      }
-    },
-
-    load(importee) {
-      if (importee === ES6_BROWSER_EMPTY) {
-        return 'export default {};';
-      }
-      return null;
-    },
-
-    getPackageInfoForId(id) {
-      return idToPackageInfo.get(id);
-    }
-  };
-}
-
-var commondir;
-var hasRequiredCommondir;
-
-function requireCommondir () {
-	if (hasRequiredCommondir) return commondir;
-	hasRequiredCommondir = 1;
-	var path = require$$0$1;
-
-	commondir = function (basedir, relfiles) {
-	    if (relfiles) {
-	        var files = relfiles.map(function (r) {
-	            return path.resolve(basedir, r);
-	        });
-	    }
-	    else {
-	        var files = basedir;
-	    }
-	    
-	    var res = files.slice(1).reduce(function (ps, file) {
-	        if (!file.match(/^([A-Za-z]:)?\/|\\/)) {
-	            throw new Error('relative path without a basedir');
-	        }
-	        
-	        var xs = file.split(/\/+|\\+/);
-	        for (
-	            var i = 0;
-	            ps[i] === xs[i] && i < Math.min(ps.length, xs.length);
-	            i++
-	        );
-	        return ps.slice(0, i);
-	    }, files[0].split(/\/+|\\+/));
-	    
-	    // Windows correctly handles paths with forward-slashes
-	    return res.length > 1 ? res.join('/') : '/'
-	};
-	return commondir;
-}
-
-var commondirExports = requireCommondir();
-var getCommonDir = /*@__PURE__*/getDefaultExportFromCjs(commondirExports);
-
-var dist = {};
-
-var builder = {};
-
-var apiBuilder = {};
-
-var async = {};
-
-var walker = {};
-
-var utils$1 = {};
-
-var hasRequiredUtils$1;
-
-function requireUtils$1 () {
-	if (hasRequiredUtils$1) return utils$1;
-	hasRequiredUtils$1 = 1;
-	Object.defineProperty(utils$1, "__esModule", { value: true });
-	utils$1.convertSlashes = utils$1.cleanPath = void 0;
-	const path_1 = require$$0$1;
-	function cleanPath(path) {
-	    let normalized = (0, path_1.normalize)(path);
-	    // we have to remove the last path separator
-	    // to account for / root path
-	    if (normalized.length > 1 && normalized[normalized.length - 1] === path_1.sep)
-	        normalized = normalized.substring(0, normalized.length - 1);
-	    return normalized;
-	}
-	utils$1.cleanPath = cleanPath;
-	const SLASHES_REGEX = /[\\/]/g;
-	function convertSlashes(path, separator) {
-	    return path.replace(SLASHES_REGEX, separator);
-	}
-	utils$1.convertSlashes = convertSlashes;
-	return utils$1;
-}
-
-var joinPath = {};
-
-var hasRequiredJoinPath;
-
-function requireJoinPath () {
-	if (hasRequiredJoinPath) return joinPath;
-	hasRequiredJoinPath = 1;
-	Object.defineProperty(joinPath, "__esModule", { value: true });
-	joinPath.build = joinPath.joinDirectoryPath = void 0;
-	function joinPathWithBasePath(filename, directoryPath) {
-	    return directoryPath + filename;
-	}
-	function joinPathWithRelativePath(root) {
-	    return function (filename, directoryPath) {
-	        return directoryPath.substring(root.length) + filename;
-	    };
-	}
-	function joinPath$1(filename) {
-	    return filename;
-	}
-	function joinDirectoryPath(filename, directoryPath, separator) {
-	    return directoryPath + filename + separator;
-	}
-	joinPath.joinDirectoryPath = joinDirectoryPath;
-	function build(root, options) {
-	    const { relativePaths, includeBasePath } = options;
-	    return relativePaths && root
-	        ? joinPathWithRelativePath(root)
-	        : includeBasePath
-	            ? joinPathWithBasePath
-	            : joinPath$1;
-	}
-	joinPath.build = build;
-	return joinPath;
-}
-
-var pushDirectory = {};
-
-var hasRequiredPushDirectory;
-
-function requirePushDirectory () {
-	if (hasRequiredPushDirectory) return pushDirectory;
-	hasRequiredPushDirectory = 1;
-	Object.defineProperty(pushDirectory, "__esModule", { value: true });
-	pushDirectory.build = void 0;
-	function pushDirectoryWithRelativePath(root) {
-	    return function (directoryPath, paths) {
-	        paths.push((directoryPath || ".").substring(root.length));
-	    };
-	}
-	function pushDirectoryFilterWithRelativePath(root) {
-	    return function (directoryPath, paths, filters) {
-	        const relativePath = directoryPath.substring(root.length);
-	        if (filters.every((filter) => filter(relativePath, true))) {
-	            paths.push(relativePath);
-	        }
-	    };
-	}
-	const pushDirectory$1 = (directoryPath, paths) => {
-	    paths.push(directoryPath || ".");
-	};
-	const pushDirectoryFilter = (directoryPath, paths, filters) => {
-	    if (filters.every((filter) => filter(directoryPath, true))) {
-	        paths.push(directoryPath);
-	    }
-	};
-	const empty = () => { };
-	function build(root, options) {
-	    const { includeDirs, filters, relativePaths } = options;
-	    if (!includeDirs)
-	        return empty;
-	    if (relativePaths)
-	        return filters && filters.length
-	            ? pushDirectoryFilterWithRelativePath(root)
-	            : pushDirectoryWithRelativePath(root);
-	    return filters && filters.length ? pushDirectoryFilter : pushDirectory$1;
-	}
-	pushDirectory.build = build;
-	return pushDirectory;
-}
-
-var pushFile = {};
-
-var hasRequiredPushFile;
-
-function requirePushFile () {
-	if (hasRequiredPushFile) return pushFile;
-	hasRequiredPushFile = 1;
-	Object.defineProperty(pushFile, "__esModule", { value: true });
-	pushFile.build = void 0;
-	const pushFileFilterAndCount = (filename, _paths, counts, filters) => {
-	    if (filters.every((filter) => filter(filename, false)))
-	        counts.files++;
-	};
-	const pushFileFilter = (filename, paths, _counts, filters) => {
-	    if (filters.every((filter) => filter(filename, false)))
-	        paths.push(filename);
-	};
-	const pushFileCount = (_filename, _paths, counts, _filters) => {
-	    counts.files++;
-	};
-	const pushFile$1 = (filename, paths) => {
-	    paths.push(filename);
-	};
-	const empty = () => { };
-	function build(options) {
-	    const { excludeFiles, filters, onlyCounts } = options;
-	    if (excludeFiles)
-	        return empty;
-	    if (filters && filters.length) {
-	        return onlyCounts ? pushFileFilterAndCount : pushFileFilter;
-	    }
-	    else if (onlyCounts) {
-	        return pushFileCount;
-	    }
-	    else {
-	        return pushFile$1;
-	    }
-	}
-	pushFile.build = build;
-	return pushFile;
-}
-
-var getArray = {};
-
-var hasRequiredGetArray;
-
-function requireGetArray () {
-	if (hasRequiredGetArray) return getArray;
-	hasRequiredGetArray = 1;
-	Object.defineProperty(getArray, "__esModule", { value: true });
-	getArray.build = void 0;
-	const getArray$1 = (paths) => {
-	    return paths;
-	};
-	const getArrayGroup = () => {
-	    return [""].slice(0, 0);
-	};
-	function build(options) {
-	    return options.group ? getArrayGroup : getArray$1;
-	}
-	getArray.build = build;
-	return getArray;
-}
-
-var groupFiles = {};
-
-var hasRequiredGroupFiles;
-
-function requireGroupFiles () {
-	if (hasRequiredGroupFiles) return groupFiles;
-	hasRequiredGroupFiles = 1;
-	Object.defineProperty(groupFiles, "__esModule", { value: true });
-	groupFiles.build = void 0;
-	const groupFiles$1 = (groups, directory, files) => {
-	    groups.push({ directory, files, dir: directory });
-	};
-	const empty = () => { };
-	function build(options) {
-	    return options.group ? groupFiles$1 : empty;
-	}
-	groupFiles.build = build;
-	return groupFiles;
-}
-
-var resolveSymlink = {};
-
-var hasRequiredResolveSymlink;
-
-function requireResolveSymlink () {
-	if (hasRequiredResolveSymlink) return resolveSymlink;
-	hasRequiredResolveSymlink = 1;
-	var __importDefault = (resolveSymlink && resolveSymlink.__importDefault) || function (mod) {
-	    return (mod && mod.__esModule) ? mod : { "default": mod };
-	};
-	Object.defineProperty(resolveSymlink, "__esModule", { value: true });
-	resolveSymlink.build = void 0;
-	const fs_1 = __importDefault(fs$2);
-	const resolveSymlinksAsync = function (path, state, callback) {
-	    const { queue, options: { suppressErrors }, } = state;
-	    queue.enqueue();
-	    fs_1.default.stat(path, (error, stat) => {
-	        if (error) {
-	            queue.dequeue(suppressErrors ? null : error, state);
-	            return;
-	        }
-	        callback(stat, path);
-	        queue.dequeue(null, state);
-	    });
-	};
-	const resolveSymlinksWithRealPathsAsync = function (path, state, callback) {
-	    const { queue, options: { suppressErrors }, } = state;
-	    queue.enqueue();
-	    fs_1.default.realpath(path, (error, resolvedPath) => {
-	        if (error) {
-	            queue.dequeue(suppressErrors ? null : error, state);
-	            return;
-	        }
-	        fs_1.default.lstat(resolvedPath, (_error, stat) => {
-	            callback(stat, resolvedPath);
-	            queue.dequeue(null, state);
-	        });
-	    });
-	};
-	const resolveSymlinksSync = function (path, state, callback) {
-	    try {
-	        const stat = fs_1.default.statSync(path);
-	        callback(stat, path);
-	    }
-	    catch (e) {
-	        if (!state.options.suppressErrors)
-	            throw e;
-	    }
-	};
-	const resolveSymlinksWithRealPathsSync = function (path, state, callback) {
-	    try {
-	        const resolvedPath = fs_1.default.realpathSync(path);
-	        const stat = fs_1.default.lstatSync(resolvedPath);
-	        callback(stat, resolvedPath);
-	    }
-	    catch (e) {
-	        if (!state.options.suppressErrors)
-	            throw e;
-	    }
-	};
-	function build(options, isSynchronous) {
-	    if (!options.resolveSymlinks)
-	        return null;
-	    if (options.useRealPaths)
-	        return isSynchronous
-	            ? resolveSymlinksWithRealPathsSync
-	            : resolveSymlinksWithRealPathsAsync;
-	    return isSynchronous ? resolveSymlinksSync : resolveSymlinksAsync;
-	}
-	resolveSymlink.build = build;
-	return resolveSymlink;
-}
-
-var invokeCallback = {};
-
-var hasRequiredInvokeCallback;
-
-function requireInvokeCallback () {
-	if (hasRequiredInvokeCallback) return invokeCallback;
-	hasRequiredInvokeCallback = 1;
-	Object.defineProperty(invokeCallback, "__esModule", { value: true });
-	invokeCallback.build = void 0;
-	const onlyCountsSync = (state) => {
-	    return state.counts;
-	};
-	const groupsSync = (state) => {
-	    return state.groups;
-	};
-	const defaultSync = (state) => {
-	    return state.paths;
-	};
-	const limitFilesSync = (state) => {
-	    return state.paths.slice(0, state.options.maxFiles);
-	};
-	const onlyCountsAsync = (state, error, callback) => {
-	    report(error, callback, state.counts, state.options.suppressErrors);
-	    return null;
-	};
-	const defaultAsync = (state, error, callback) => {
-	    report(error, callback, state.paths, state.options.suppressErrors);
-	    return null;
-	};
-	const limitFilesAsync = (state, error, callback) => {
-	    report(error, callback, state.paths.slice(0, state.options.maxFiles), state.options.suppressErrors);
-	    return null;
-	};
-	const groupsAsync = (state, error, callback) => {
-	    report(error, callback, state.groups, state.options.suppressErrors);
-	    return null;
-	};
-	function report(error, callback, output, suppressErrors) {
-	    if (error && !suppressErrors)
-	        callback(error, output);
-	    else
-	        callback(null, output);
-	}
-	function build(options, isSynchronous) {
-	    const { onlyCounts, group, maxFiles } = options;
-	    if (onlyCounts)
-	        return isSynchronous
-	            ? onlyCountsSync
-	            : onlyCountsAsync;
-	    else if (group)
-	        return isSynchronous
-	            ? groupsSync
-	            : groupsAsync;
-	    else if (maxFiles)
-	        return isSynchronous
-	            ? limitFilesSync
-	            : limitFilesAsync;
-	    else
-	        return isSynchronous
-	            ? defaultSync
-	            : defaultAsync;
-	}
-	invokeCallback.build = build;
-	return invokeCallback;
-}
-
-var walkDirectory = {};
-
-var hasRequiredWalkDirectory;
-
-function requireWalkDirectory () {
-	if (hasRequiredWalkDirectory) return walkDirectory;
-	hasRequiredWalkDirectory = 1;
-	var __importDefault = (walkDirectory && walkDirectory.__importDefault) || function (mod) {
-	    return (mod && mod.__esModule) ? mod : { "default": mod };
-	};
-	Object.defineProperty(walkDirectory, "__esModule", { value: true });
-	walkDirectory.build = void 0;
-	const fs_1 = __importDefault(fs$2);
-	const readdirOpts = { withFileTypes: true };
-	const walkAsync = (state, directoryPath, currentDepth, callback) => {
-	    state.queue.enqueue();
-	    if (currentDepth < 0) {
-	        state.queue.dequeue(null, state);
-	        return;
-	    }
-	    state.counts.directories++;
-	    // Perf: Node >= 10 introduced withFileTypes that helps us
-	    // skip an extra fs.stat call.
-	    fs_1.default.readdir(directoryPath || ".", readdirOpts, function process(error, entries = []) {
-	        callback(entries, directoryPath, currentDepth);
-	        state.queue.dequeue(state.options.suppressErrors ? null : error, state);
-	    });
-	};
-	const walkSync = (state, directoryPath, currentDepth, callback) => {
-	    if (currentDepth < 0) {
-	        return;
-	    }
-	    state.counts.directories++;
-	    let entries = [];
-	    try {
-	        entries = fs_1.default.readdirSync(directoryPath || ".", readdirOpts);
-	    }
-	    catch (e) {
-	        if (!state.options.suppressErrors)
-	            throw e;
-	    }
-	    callback(entries, directoryPath, currentDepth);
-	};
-	function build(isSynchronous) {
-	    return isSynchronous ? walkSync : walkAsync;
-	}
-	walkDirectory.build = build;
-	return walkDirectory;
-}
-
-var queue = {};
-
-var hasRequiredQueue;
-
-function requireQueue () {
-	if (hasRequiredQueue) return queue;
-	hasRequiredQueue = 1;
-	Object.defineProperty(queue, "__esModule", { value: true });
-	queue.Queue = void 0;
-	/**
-	 * This is a custom stateless queue to track concurrent async fs calls.
-	 * It increments a counter whenever a call is queued and decrements it
-	 * as soon as it completes. When the counter hits 0, it calls onQueueEmpty.
-	 */
-	class Queue {
-	    onQueueEmpty;
-	    count = 0;
-	    constructor(onQueueEmpty) {
-	        this.onQueueEmpty = onQueueEmpty;
-	    }
-	    enqueue() {
-	        this.count++;
-	    }
-	    dequeue(error, output) {
-	        if (--this.count === 0 || error)
-	            this.onQueueEmpty(error, output);
-	    }
-	}
-	queue.Queue = Queue;
-	return queue;
-}
-
-var counter = {};
-
-var hasRequiredCounter;
-
-function requireCounter () {
-	if (hasRequiredCounter) return counter;
-	hasRequiredCounter = 1;
-	Object.defineProperty(counter, "__esModule", { value: true });
-	counter.Counter = void 0;
-	class Counter {
-	    _files = 0;
-	    _directories = 0;
-	    set files(num) {
-	        this._files = num;
-	    }
-	    get files() {
-	        return this._files;
-	    }
-	    set directories(num) {
-	        this._directories = num;
-	    }
-	    get directories() {
-	        return this._directories;
-	    }
-	    /**
-	     * @deprecated use `directories` instead
-	     */
-	    /* c8 ignore next 3 */
-	    get dirs() {
-	        return this._directories;
-	    }
-	}
-	counter.Counter = Counter;
-	return counter;
-}
-
-var hasRequiredWalker;
-
-function requireWalker () {
-	if (hasRequiredWalker) return walker;
-	hasRequiredWalker = 1;
-	var __createBinding = (walker && walker.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-	    if (k2 === undefined) k2 = k;
-	    var desc = Object.getOwnPropertyDescriptor(m, k);
-	    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-	      desc = { enumerable: true, get: function() { return m[k]; } };
-	    }
-	    Object.defineProperty(o, k2, desc);
-	}) : (function(o, m, k, k2) {
-	    if (k2 === undefined) k2 = k;
-	    o[k2] = m[k];
-	}));
-	var __setModuleDefault = (walker && walker.__setModuleDefault) || (Object.create ? (function(o, v) {
-	    Object.defineProperty(o, "default", { enumerable: true, value: v });
-	}) : function(o, v) {
-	    o["default"] = v;
-	});
-	var __importStar = (walker && walker.__importStar) || function (mod) {
-	    if (mod && mod.__esModule) return mod;
-	    var result = {};
-	    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-	    __setModuleDefault(result, mod);
-	    return result;
-	};
-	Object.defineProperty(walker, "__esModule", { value: true });
-	walker.Walker = void 0;
-	const path_1 = require$$0$1;
-	const utils_1 = requireUtils$1();
-	const joinPath = __importStar(requireJoinPath());
-	const pushDirectory = __importStar(requirePushDirectory());
-	const pushFile = __importStar(requirePushFile());
-	const getArray = __importStar(requireGetArray());
-	const groupFiles = __importStar(requireGroupFiles());
-	const resolveSymlink = __importStar(requireResolveSymlink());
-	const invokeCallback = __importStar(requireInvokeCallback());
-	const walkDirectory = __importStar(requireWalkDirectory());
-	const queue_1 = requireQueue();
-	const counter_1 = requireCounter();
-	class Walker {
-	    root;
-	    isSynchronous;
-	    state;
-	    joinPath;
-	    pushDirectory;
-	    pushFile;
-	    getArray;
-	    groupFiles;
-	    resolveSymlink;
-	    walkDirectory;
-	    callbackInvoker;
-	    constructor(root, options, callback) {
-	        this.isSynchronous = !callback;
-	        this.callbackInvoker = invokeCallback.build(options, this.isSynchronous);
-	        this.state = {
-	            // Perf: we explicitly tell the compiler to optimize for String arrays
-	            paths: [""].slice(0, 0),
-	            groups: [],
-	            counts: new counter_1.Counter(),
-	            options,
-	            queue: new queue_1.Queue((error, state) => this.callbackInvoker(state, error, callback)),
-	        };
-	        this.root = this.normalizePath(root);
-	        /*
-	         * Perf: We conditionally change functions according to options. This gives a slight
-	         * performance boost. Since these functions are so small, they are automatically inlined
-	         * by the javascript engine so there's no function call overhead (in most cases).
-	         */
-	        this.joinPath = joinPath.build(this.root, options);
-	        this.pushDirectory = pushDirectory.build(this.root, options);
-	        this.pushFile = pushFile.build(options);
-	        this.getArray = getArray.build(options);
-	        this.groupFiles = groupFiles.build(options);
-	        this.resolveSymlink = resolveSymlink.build(options, this.isSynchronous);
-	        this.walkDirectory = walkDirectory.build(this.isSynchronous);
-	    }
-	    start() {
-	        this.walkDirectory(this.state, this.root, this.state.options.maxDepth, this.walk);
-	        return this.isSynchronous ? this.callbackInvoker(this.state, null) : null;
-	    }
-	    normalizePath(path) {
-	        const { resolvePaths, normalizePath, pathSeparator } = this.state.options;
-	        const pathNeedsCleaning = (process.platform === "win32" && path.includes("/")) ||
-	            path.startsWith(".");
-	        if (resolvePaths)
-	            path = (0, path_1.resolve)(path);
-	        if (normalizePath || pathNeedsCleaning)
-	            path = (0, utils_1.cleanPath)(path);
-	        if (path === ".")
-	            return "";
-	        const needsSeperator = path[path.length - 1] !== pathSeparator;
-	        return (0, utils_1.convertSlashes)(needsSeperator ? path + pathSeparator : path, pathSeparator);
-	    }
-	    walk = (entries, directoryPath, depth) => {
-	        const { paths, options: { filters, resolveSymlinks, exclude, maxFiles, signal }, } = this.state;
-	        if ((signal && signal.aborted) || (maxFiles && paths.length > maxFiles))
-	            return;
-	        this.pushDirectory(directoryPath, paths, filters);
-	        const files = this.getArray(this.state.paths);
-	        for (let i = 0; i < entries.length; ++i) {
-	            const entry = entries[i];
-	            if (entry.isFile() || (entry.isSymbolicLink() && !resolveSymlinks)) {
-	                const filename = this.joinPath(entry.name, directoryPath);
-	                this.pushFile(filename, files, this.state.counts, filters);
-	            }
-	            else if (entry.isDirectory()) {
-	                let path = joinPath.joinDirectoryPath(entry.name, directoryPath, this.state.options.pathSeparator);
-	                if (exclude && exclude(entry.name, path))
-	                    continue;
-	                this.walkDirectory(this.state, path, depth - 1, this.walk);
-	            }
-	            else if (entry.isSymbolicLink() && resolveSymlinks) {
-	                let path = this.joinPath(entry.name, directoryPath);
-	                this.resolveSymlink(path, this.state, (stat, resolvedPath) => {
-	                    if (stat.isDirectory()) {
-	                        resolvedPath = this.normalizePath(resolvedPath);
-	                        if (exclude && exclude(entry.name, resolvedPath))
-	                            return;
-	                        this.walkDirectory(this.state, resolvedPath, depth - 1, this.walk);
-	                    }
-	                    else {
-	                        this.pushFile(resolvedPath, files, this.state.counts, filters);
-	                    }
-	                });
-	            }
-	        }
-	        this.groupFiles(this.state.groups, directoryPath, files);
-	    };
-	}
-	walker.Walker = Walker;
-	return walker;
-}
-
-var hasRequiredAsync;
-
-function requireAsync () {
-	if (hasRequiredAsync) return async;
-	hasRequiredAsync = 1;
-	Object.defineProperty(async, "__esModule", { value: true });
-	async.callback = async.promise = void 0;
-	const walker_1 = requireWalker();
-	function promise(root, options) {
-	    return new Promise((resolve, reject) => {
-	        callback(root, options, (err, output) => {
-	            if (err)
-	                return reject(err);
-	            resolve(output);
-	        });
-	    });
-	}
-	async.promise = promise;
-	function callback(root, options, callback) {
-	    let walker = new walker_1.Walker(root, options, callback);
-	    walker.start();
-	}
-	async.callback = callback;
-	return async;
-}
-
-var sync = {};
-
-var hasRequiredSync;
-
-function requireSync () {
-	if (hasRequiredSync) return sync;
-	hasRequiredSync = 1;
-	Object.defineProperty(sync, "__esModule", { value: true });
-	sync.sync = void 0;
-	const walker_1 = requireWalker();
-	function sync$1(root, options) {
-	    const walker = new walker_1.Walker(root, options);
-	    return walker.start();
-	}
-	sync.sync = sync$1;
-	return sync;
-}
-
-var hasRequiredApiBuilder;
-
-function requireApiBuilder () {
-	if (hasRequiredApiBuilder) return apiBuilder;
-	hasRequiredApiBuilder = 1;
-	Object.defineProperty(apiBuilder, "__esModule", { value: true });
-	apiBuilder.APIBuilder = void 0;
-	const async_1 = requireAsync();
-	const sync_1 = requireSync();
-	class APIBuilder {
-	    root;
-	    options;
-	    constructor(root, options) {
-	        this.root = root;
-	        this.options = options;
-	    }
-	    withPromise() {
-	        return (0, async_1.promise)(this.root, this.options);
-	    }
-	    withCallback(cb) {
-	        (0, async_1.callback)(this.root, this.options, cb);
-	    }
-	    sync() {
-	        return (0, sync_1.sync)(this.root, this.options);
-	    }
-	}
-	apiBuilder.APIBuilder = APIBuilder;
-	return apiBuilder;
-}
-
 var utils = {};
 
 var constants;
@@ -6696,6 +2360,8 @@ function requireConstants () {
 
 	const WIN_SLASH = '\\\\/';
 	const WIN_NO_SLASH = `[^${WIN_SLASH}]`;
+
+	const DEFAULT_MAX_EXTGLOB_RECURSION = 0;
 
 	/**
 	 * Posix glob regex
@@ -6763,6 +2429,7 @@ function requireConstants () {
 	 */
 
 	const POSIX_REGEX_SOURCE = {
+	  __proto__: null,
 	  alnum: 'a-zA-Z0-9',
 	  alpha: 'a-zA-Z',
 	  ascii: '\\x00-\\x7F',
@@ -6780,6 +2447,7 @@ function requireConstants () {
 	};
 
 	constants = {
+	  DEFAULT_MAX_EXTGLOB_RECURSION,
 	  MAX_LENGTH: 1024 * 64,
 	  POSIX_REGEX_SOURCE,
 
@@ -6793,6 +2461,7 @@ function requireConstants () {
 
 	  // Replace globs with equivalent patterns to reduce parsing time.
 	  REPLACEMENTS: {
+	    __proto__: null,
 	    '***': '*',
 	    '**/**': '**',
 	    '**/**/**': '**'
@@ -7407,6 +3076,307 @@ function requireParse () {
 	  return `Missing ${type}: "${char}" - use "\\\\${char}" to match literal characters`;
 	};
 
+	const splitTopLevel = input => {
+	  const parts = [];
+	  let bracket = 0;
+	  let paren = 0;
+	  let quote = 0;
+	  let value = '';
+	  let escaped = false;
+
+	  for (const ch of input) {
+	    if (escaped === true) {
+	      value += ch;
+	      escaped = false;
+	      continue;
+	    }
+
+	    if (ch === '\\') {
+	      value += ch;
+	      escaped = true;
+	      continue;
+	    }
+
+	    if (ch === '"') {
+	      quote = quote === 1 ? 0 : 1;
+	      value += ch;
+	      continue;
+	    }
+
+	    if (quote === 0) {
+	      if (ch === '[') {
+	        bracket++;
+	      } else if (ch === ']' && bracket > 0) {
+	        bracket--;
+	      } else if (bracket === 0) {
+	        if (ch === '(') {
+	          paren++;
+	        } else if (ch === ')' && paren > 0) {
+	          paren--;
+	        } else if (ch === '|' && paren === 0) {
+	          parts.push(value);
+	          value = '';
+	          continue;
+	        }
+	      }
+	    }
+
+	    value += ch;
+	  }
+
+	  parts.push(value);
+	  return parts;
+	};
+
+	const isPlainBranch = branch => {
+	  let escaped = false;
+
+	  for (const ch of branch) {
+	    if (escaped === true) {
+	      escaped = false;
+	      continue;
+	    }
+
+	    if (ch === '\\') {
+	      escaped = true;
+	      continue;
+	    }
+
+	    if (/[?*+@!()[\]{}]/.test(ch)) {
+	      return false;
+	    }
+	  }
+
+	  return true;
+	};
+
+	const normalizeSimpleBranch = branch => {
+	  let value = branch.trim();
+	  let changed = true;
+
+	  while (changed === true) {
+	    changed = false;
+
+	    if (/^@\([^\\()[\]{}|]+\)$/.test(value)) {
+	      value = value.slice(2, -1);
+	      changed = true;
+	    }
+	  }
+
+	  if (!isPlainBranch(value)) {
+	    return;
+	  }
+
+	  return value.replace(/\\(.)/g, '$1');
+	};
+
+	const hasRepeatedCharPrefixOverlap = branches => {
+	  const values = branches.map(normalizeSimpleBranch).filter(Boolean);
+
+	  for (let i = 0; i < values.length; i++) {
+	    for (let j = i + 1; j < values.length; j++) {
+	      const a = values[i];
+	      const b = values[j];
+	      const char = a[0];
+
+	      if (!char || a !== char.repeat(a.length) || b !== char.repeat(b.length)) {
+	        continue;
+	      }
+
+	      if (a === b || a.startsWith(b) || b.startsWith(a)) {
+	        return true;
+	      }
+	    }
+	  }
+
+	  return false;
+	};
+
+	const parseRepeatedExtglob = (pattern, requireEnd = true) => {
+	  if ((pattern[0] !== '+' && pattern[0] !== '*') || pattern[1] !== '(') {
+	    return;
+	  }
+
+	  let bracket = 0;
+	  let paren = 0;
+	  let quote = 0;
+	  let escaped = false;
+
+	  for (let i = 1; i < pattern.length; i++) {
+	    const ch = pattern[i];
+
+	    if (escaped === true) {
+	      escaped = false;
+	      continue;
+	    }
+
+	    if (ch === '\\') {
+	      escaped = true;
+	      continue;
+	    }
+
+	    if (ch === '"') {
+	      quote = quote === 1 ? 0 : 1;
+	      continue;
+	    }
+
+	    if (quote === 1) {
+	      continue;
+	    }
+
+	    if (ch === '[') {
+	      bracket++;
+	      continue;
+	    }
+
+	    if (ch === ']' && bracket > 0) {
+	      bracket--;
+	      continue;
+	    }
+
+	    if (bracket > 0) {
+	      continue;
+	    }
+
+	    if (ch === '(') {
+	      paren++;
+	      continue;
+	    }
+
+	    if (ch === ')') {
+	      paren--;
+
+	      if (paren === 0) {
+	        if (requireEnd === true && i !== pattern.length - 1) {
+	          return;
+	        }
+
+	        return {
+	          type: pattern[0],
+	          body: pattern.slice(2, i),
+	          end: i
+	        };
+	      }
+	    }
+	  }
+	};
+
+	const buildCharClassStar = chars => {
+	  const source = chars.length === 1
+	    ? utils.escapeRegex(chars[0])
+	    : `[${chars.map(ch => utils.escapeRegex(ch)).join('')}]`;
+
+	  return `${source}*`;
+	};
+
+	const getStarExtglobSequenceChars = pattern => {
+	  let index = 0;
+	  const chars = [];
+
+	  while (index < pattern.length) {
+	    const match = parseRepeatedExtglob(pattern.slice(index), false);
+
+	    if (!match || match.type !== '*') {
+	      return;
+	    }
+
+	    const branches = splitTopLevel(match.body).map(branch => branch.trim());
+	    if (branches.length !== 1) {
+	      return;
+	    }
+
+	    const branch = normalizeSimpleBranch(branches[0]);
+	    if (!branch || branch.length !== 1) {
+	      return;
+	    }
+
+	    chars.push(branch);
+	    index += match.end + 1;
+	  }
+
+	  if (chars.length < 1) {
+	    return;
+	  }
+
+	  return chars;
+	};
+
+	const repeatedExtglobRecursion = pattern => {
+	  let depth = 0;
+	  let value = pattern.trim();
+	  let match = parseRepeatedExtglob(value);
+
+	  while (match) {
+	    depth++;
+	    value = match.body.trim();
+	    match = parseRepeatedExtglob(value);
+	  }
+
+	  return depth;
+	};
+
+	const analyzeRepeatedExtglob = (body, options) => {
+	  if (options.maxExtglobRecursion === false) {
+	    return { risky: false };
+	  }
+
+	  const max =
+	    typeof options.maxExtglobRecursion === 'number'
+	      ? options.maxExtglobRecursion
+	      : constants.DEFAULT_MAX_EXTGLOB_RECURSION;
+
+	  const branches = splitTopLevel(body).map(branch => branch.trim());
+
+	  if (branches.length > 1) {
+	    if (
+	      branches.some(branch => branch === '') ||
+	      branches.some(branch => /^[*?]+$/.test(branch)) ||
+	      hasRepeatedCharPrefixOverlap(branches)
+	    ) {
+	      return { risky: true };
+	    }
+	  }
+
+	  // A repeated extglob is "risky" (prone to catastrophic backtracking) when a
+	  // branch is itself a `*(...)` sequence, since that nests an unbounded quantifier
+	  // inside the outer `+(...)`/`*(...)`. When *every* branch reduces to single
+	  // characters we can emit one flat, ReDoS-safe character class that preserves the
+	  // meaning of ALL branches (e.g. `+(*(a)|*(b))` -> `[ab]*`), rather than dropping
+	  // every branch but the first.
+	  const safeChars = [];
+	  let sawStarSequence = false;
+	  let combinable = true;
+
+	  for (const branch of branches) {
+	    const chars = getStarExtglobSequenceChars(branch);
+	    if (chars) {
+	      sawStarSequence = true;
+	      safeChars.push(...chars);
+	      continue;
+	    }
+
+	    const literal = normalizeSimpleBranch(branch);
+	    if (literal && literal.length === 1) {
+	      safeChars.push(literal);
+	      continue;
+	    }
+
+	    combinable = false;
+
+	    if (repeatedExtglobRecursion(branch) > max) {
+	      return { risky: true };
+	    }
+	  }
+
+	  if (sawStarSequence) {
+	    return combinable
+	      ? { risky: true, safeOutput: buildCharClassStar([...new Set(safeChars)]) }
+	      : { risky: true };
+	  }
+
+	  return { risky: false };
+	};
+
 	/**
 	 * Parse the given input string.
 	 * @param {String} input
@@ -7587,6 +3557,8 @@ function requireParse () {
 	    token.prev = prev;
 	    token.parens = state.parens;
 	    token.output = state.output;
+	    token.startIndex = state.index;
+	    token.tokensIndex = tokens.length;
 	    const output = (opts.capture ? '(' : '') + token.open;
 
 	    increment('parens');
@@ -7596,6 +3568,34 @@ function requireParse () {
 	  };
 
 	  const extglobClose = token => {
+	    const literal = input.slice(token.startIndex, state.index + 1);
+	    const body = input.slice(token.startIndex + 2, state.index);
+	    const analysis = analyzeRepeatedExtglob(body, opts);
+
+	    if ((token.type === 'plus' || token.type === 'star') && analysis.risky) {
+	      const safeOutput = analysis.safeOutput
+	        ? (token.output ? '' : ONE_CHAR) + (opts.capture ? `(${analysis.safeOutput})` : analysis.safeOutput)
+	        : undefined;
+	      const open = tokens[token.tokensIndex];
+
+	      open.type = 'text';
+	      open.value = literal;
+	      open.output = safeOutput || utils.escapeRegex(literal);
+
+	      for (let i = token.tokensIndex + 1; i < tokens.length; i++) {
+	        tokens[i].value = '';
+	        tokens[i].output = '';
+	        delete tokens[i].suffix;
+	      }
+
+	      state.output = token.output + open.output;
+	      state.backtrack = true;
+
+	      push({ type: 'paren', extglob: true, value, output: '' });
+	      decrement('parens');
+	      return;
+	    }
+
 	    let output = token.close + (opts.capture ? ')' : '');
 	    let rest;
 
@@ -8475,6 +4475,18 @@ function requirePicomatch$1 () {
 	 * const isMatch = picomatch('*.!(*a)');
 	 * console.log(isMatch('a.a')); //=> false
 	 * console.log(isMatch('a.b')); //=> true
+	 *
+	 * // For environments without `node.js`, `picomatch/posix` provides you a dependency-free matcher, without automatic OS detection.
+	 * const picomatch = require('picomatch/posix');
+	 * // the same API, defaulting to posix paths
+	 * const isMatch = picomatch('a/*');
+	 * console.log(isMatch('a\\b')); //=> false
+	 * console.log(isMatch('a/b')); //=> true
+	 *
+	 * // you can still configure the matcher function to accept windows paths
+	 * const isMatch = picomatch('a/*', { options: windows });
+	 * console.log(isMatch('a\\b')); //=> true
+	 * console.log(isMatch('a/b')); //=> true
 	 * ```
 	 * @name picomatch
 	 * @param {String|Array} `globs` One or more glob patterns.
@@ -8612,9 +4624,9 @@ function requirePicomatch$1 () {
 	 * @api public
 	 */
 
-	picomatch.matchBase = (input, glob, options) => {
+	picomatch.matchBase = (input, glob, options, posix = options && options.windows) => {
 	  const regex = glob instanceof RegExp ? glob : picomatch.makeRe(glob, options);
-	  return regex.test(utils.basename(input));
+	  return regex.test(utils.basename(input, { windows: posix }));
 	};
 
 	/**
@@ -8688,6 +4700,14 @@ function requirePicomatch$1 () {
 	 * Compile a regular expression from the `state` object returned by the
 	 * [parse()](#parse) method.
 	 *
+	 * ```js
+	 * const picomatch = require('picomatch');
+	 * const state = picomatch.parse('*.js');
+	 * // picomatch.compileRe(state[, options]);
+	 *
+	 * console.log(picomatch.compileRe(state));
+	 * //=> /^(?:(?!\.)(?=.)[^/]*?\.js)$/
+	 * ```
 	 * @param {Object} `state`
 	 * @param {Object} `options`
 	 * @param {Boolean} `returnOutput` Intended for implementors, this argument allows you to return the raw output from the parser.
@@ -8723,10 +4743,10 @@ function requirePicomatch$1 () {
 	 *
 	 * ```js
 	 * const picomatch = require('picomatch');
-	 * const state = picomatch.parse('*.js');
-	 * // picomatch.compileRe(state[, options]);
+	 * // picomatch.makeRe(state[, options]);
 	 *
-	 * console.log(picomatch.compileRe(state));
+	 * const result = picomatch.makeRe('*.js');
+	 * console.log(result);
 	 * //=> /^(?:(?!\.)(?=.)[^/]*?\.js)$/
 	 * ```
 	 * @param {String} `state` The object returned from the `.parse` method.
@@ -8822,266 +4842,2299 @@ function requirePicomatch () {
 	return picomatch_1;
 }
 
-var hasRequiredBuilder;
+var picomatchExports = /*@__PURE__*/ requirePicomatch();
+var pm$1 = /*@__PURE__*/getDefaultExportFromCjs(picomatchExports);
 
-function requireBuilder () {
-	if (hasRequiredBuilder) return builder;
-	hasRequiredBuilder = 1;
-	Object.defineProperty(builder, "__esModule", { value: true });
-	builder.Builder = void 0;
-	const path_1 = require$$0$1;
-	const api_builder_1 = requireApiBuilder();
-	var pm = null;
-	/* c8 ignore next 6 */
-	try {
-	    require.resolve("picomatch");
-	    pm = /*@__PURE__*/ requirePicomatch();
-	}
-	catch (_e) {
-	    // do nothing
-	}
-	class Builder {
-	    globCache = {};
-	    options = {
-	        maxDepth: Infinity,
-	        suppressErrors: true,
-	        pathSeparator: path_1.sep,
-	        filters: [],
-	    };
-	    constructor(options) {
-	        this.options = { ...this.options, ...options };
-	    }
-	    group() {
-	        this.options.group = true;
-	        return this;
-	    }
-	    withPathSeparator(separator) {
-	        this.options.pathSeparator = separator;
-	        return this;
-	    }
-	    withBasePath() {
-	        this.options.includeBasePath = true;
-	        return this;
-	    }
-	    withRelativePaths() {
-	        this.options.relativePaths = true;
-	        return this;
-	    }
-	    withDirs() {
-	        this.options.includeDirs = true;
-	        return this;
-	    }
-	    withMaxDepth(depth) {
-	        this.options.maxDepth = depth;
-	        return this;
-	    }
-	    withMaxFiles(limit) {
-	        this.options.maxFiles = limit;
-	        return this;
-	    }
-	    withFullPaths() {
-	        this.options.resolvePaths = true;
-	        this.options.includeBasePath = true;
-	        return this;
-	    }
-	    withErrors() {
-	        this.options.suppressErrors = false;
-	        return this;
-	    }
-	    withSymlinks({ resolvePaths = true } = {}) {
-	        this.options.resolveSymlinks = true;
-	        this.options.useRealPaths = resolvePaths;
-	        return this.withFullPaths();
-	    }
-	    withAbortSignal(signal) {
-	        this.options.signal = signal;
-	        return this;
-	    }
-	    normalize() {
-	        this.options.normalizePath = true;
-	        return this;
-	    }
-	    filter(predicate) {
-	        this.options.filters.push(predicate);
-	        return this;
-	    }
-	    onlyDirs() {
-	        this.options.excludeFiles = true;
-	        this.options.includeDirs = true;
-	        return this;
-	    }
-	    exclude(predicate) {
-	        this.options.exclude = predicate;
-	        return this;
-	    }
-	    onlyCounts() {
-	        this.options.onlyCounts = true;
-	        return this;
-	    }
-	    crawl(root) {
-	        return new api_builder_1.APIBuilder(root || ".", this.options);
-	    }
-	    /**
-	     * @deprecated Pass options using the constructor instead:
-	     * ```ts
-	     * new fdir(options).crawl("/path/to/root");
-	     * ```
-	     * This method will be removed in v7.0
-	     */
-	    /* c8 ignore next 4 */
-	    crawlWithOptions(root, options) {
-	        this.options = { ...this.options, ...options };
-	        return new api_builder_1.APIBuilder(root || ".", this.options);
-	    }
-	    glob(...patterns) {
-	        return this.globWithOptions(patterns, { dot: true });
-	    }
-	    globWithOptions(patterns, options) {
-	        /* c8 ignore next 5 */
-	        if (!pm) {
-	            throw new Error(`Please install picomatch: "npm i picomatch" to use glob matching.`);
-	        }
-	        var isMatch = this.globCache[patterns.join("\0")];
-	        if (!isMatch) {
-	            isMatch = pm(patterns, options);
-	            this.globCache[patterns.join("\0")] = isMatch;
-	        }
-	        this.options.filters.push((path) => isMatch(path));
-	        return this;
-	    }
-	}
-	builder.Builder = Builder;
-	return builder;
-}
-
-var types = {};
-
-var hasRequiredTypes;
-
-function requireTypes () {
-	if (hasRequiredTypes) return types;
-	hasRequiredTypes = 1;
-	Object.defineProperty(types, "__esModule", { value: true });
-	return types;
-}
-
-var hasRequiredDist;
-
-function requireDist () {
-	if (hasRequiredDist) return dist;
-	hasRequiredDist = 1;
-	(function (exports) {
-		var __createBinding = (dist && dist.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-		    if (k2 === undefined) k2 = k;
-		    var desc = Object.getOwnPropertyDescriptor(m, k);
-		    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-		      desc = { enumerable: true, get: function() { return m[k]; } };
-		    }
-		    Object.defineProperty(o, k2, desc);
-		}) : (function(o, m, k, k2) {
-		    if (k2 === undefined) k2 = k;
-		    o[k2] = m[k];
-		}));
-		var __exportStar = (dist && dist.__exportStar) || function(m, exports) {
-		    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
-		};
-		Object.defineProperty(exports, "__esModule", { value: true });
-		exports.fdir = void 0;
-		const builder_1 = requireBuilder();
-		Object.defineProperty(exports, "fdir", { enumerable: true, get: function () { return builder_1.Builder; } });
-		__exportStar(requireTypes(), exports); 
-	} (dist));
-	return dist;
-}
-
-var distExports = requireDist();
-
-const comma = ','.charCodeAt(0);
-const semicolon = ';'.charCodeAt(0);
-const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-const intToChar = new Uint8Array(64); // 64 possible chars.
-const charToInt = new Uint8Array(128); // z is 122 in ASCII
-for (let i = 0; i < chars.length; i++) {
-    const c = chars.charCodeAt(i);
-    intToChar[i] = c;
-    charToInt[c] = i;
-}
-// Provide a fallback for older environments.
-const td = typeof TextDecoder !== 'undefined'
-    ? /* #__PURE__ */ new TextDecoder()
-    : typeof Buffer !== 'undefined'
-        ? {
-            decode(buf) {
-                const out = Buffer.from(buf.buffer, buf.byteOffset, buf.byteLength);
-                return out.toString();
-            },
+const extractors = {
+    ArrayPattern(names, param) {
+        for (const element of param.elements) {
+            if (element)
+                extractors[element.type](names, element);
         }
-        : {
-            decode(buf) {
-                let out = '';
-                for (let i = 0; i < buf.length; i++) {
-                    out += String.fromCharCode(buf[i]);
-                }
-                return out;
-            },
-        };
-function encode(decoded) {
-    const state = new Int32Array(5);
-    const bufLength = 1024 * 16;
-    const subLength = bufLength - 36;
-    const buf = new Uint8Array(bufLength);
-    const sub = buf.subarray(0, subLength);
-    let pos = 0;
-    let out = '';
-    for (let i = 0; i < decoded.length; i++) {
-        const line = decoded[i];
-        if (i > 0) {
-            if (pos === bufLength) {
-                out += td.decode(buf);
-                pos = 0;
+    },
+    AssignmentPattern(names, param) {
+        extractors[param.left.type](names, param.left);
+    },
+    Identifier(names, param) {
+        names.push(param.name);
+    },
+    MemberExpression() { },
+    ObjectPattern(names, param) {
+        for (const prop of param.properties) {
+            // @ts-ignore Typescript reports that this is not a valid type
+            if (prop.type === 'RestElement') {
+                extractors.RestElement(names, prop);
             }
-            buf[pos++] = semicolon;
+            else {
+                extractors[prop.value.type](names, prop.value);
+            }
         }
-        if (line.length === 0)
-            continue;
-        state[0] = 0;
-        for (let j = 0; j < line.length; j++) {
-            const segment = line[j];
-            // We can push up to 5 ints, each int can take at most 7 chars, and we
-            // may push a comma.
-            if (pos > subLength) {
-                out += td.decode(sub);
-                buf.copyWithin(0, subLength, pos);
-                pos -= subLength;
-            }
-            if (j > 0)
-                buf[pos++] = comma;
-            pos = encodeInteger(buf, pos, state, segment, 0); // genColumn
-            if (segment.length === 1)
-                continue;
-            pos = encodeInteger(buf, pos, state, segment, 1); // sourcesIndex
-            pos = encodeInteger(buf, pos, state, segment, 2); // sourceLine
-            pos = encodeInteger(buf, pos, state, segment, 3); // sourceColumn
-            if (segment.length === 4)
-                continue;
-            pos = encodeInteger(buf, pos, state, segment, 4); // namesIndex
+    },
+    RestElement(names, param) {
+        extractors[param.argument.type](names, param.argument);
+    }
+};
+const extractAssignedNames = function extractAssignedNames(param) {
+    const names = [];
+    extractors[param.type](names, param);
+    return names;
+};
+
+const blockDeclarations = {
+    const: true,
+    let: true
+};
+class Scope {
+    constructor(options = {}) {
+        this.parent = options.parent;
+        this.isBlockScope = !!options.block;
+        this.declarations = Object.create(null);
+        if (options.params) {
+            options.params.forEach((param) => {
+                extractAssignedNames(param).forEach((name) => {
+                    this.declarations[name] = true;
+                });
+            });
         }
     }
-    return out + td.decode(buf.subarray(0, pos));
+    addDeclaration(node, isBlockDeclaration, isVar) {
+        if (!isBlockDeclaration && this.isBlockScope) {
+            // it's a `var` or function node, and this
+            // is a block scope, so we need to go up
+            this.parent.addDeclaration(node, isBlockDeclaration, isVar);
+        }
+        else if (node.id) {
+            extractAssignedNames(node.id).forEach((name) => {
+                this.declarations[name] = true;
+            });
+        }
+    }
+    contains(name) {
+        return this.declarations[name] || (this.parent ? this.parent.contains(name) : false);
+    }
 }
-function encodeInteger(buf, pos, state, segment, j) {
-    const next = segment[j];
-    let num = next - state[j];
-    state[j] = next;
-    num = num < 0 ? (-num << 1) | 1 : num << 1;
-    do {
-        let clamped = num & 0b011111;
-        num >>>= 5;
-        if (num > 0)
-            clamped |= 0b100000;
-        buf[pos++] = intToChar[clamped];
-    } while (num > 0);
-    return pos;
+const attachScopes = function attachScopes(ast, propertyName = 'scope') {
+    let scope = new Scope();
+    walk(ast, {
+        enter(n, parent) {
+            const node = n;
+            // function foo () {...}
+            // class Foo {...}
+            if (/(?:Function|Class)Declaration/.test(node.type)) {
+                scope.addDeclaration(node, false, false);
+            }
+            // var foo = 1
+            if (node.type === 'VariableDeclaration') {
+                const { kind } = node;
+                const isBlockDeclaration = blockDeclarations[kind];
+                node.declarations.forEach((declaration) => {
+                    scope.addDeclaration(declaration, isBlockDeclaration, true);
+                });
+            }
+            let newScope;
+            // create new function scope
+            if (node.type.includes('Function')) {
+                const func = node;
+                newScope = new Scope({
+                    parent: scope,
+                    block: false,
+                    params: func.params
+                });
+                // named function expressions - the name is considered
+                // part of the function's scope
+                if (func.type === 'FunctionExpression' && func.id) {
+                    newScope.addDeclaration(func, false, false);
+                }
+            }
+            // create new for scope
+            if (/For(?:In|Of)?Statement/.test(node.type)) {
+                newScope = new Scope({
+                    parent: scope,
+                    block: true
+                });
+            }
+            // create new block scope
+            if (node.type === 'BlockStatement' && !parent.type.includes('Function')) {
+                newScope = new Scope({
+                    parent: scope,
+                    block: true
+                });
+            }
+            // catch clause has its own block scope
+            if (node.type === 'CatchClause') {
+                newScope = new Scope({
+                    parent: scope,
+                    params: node.param ? [node.param] : [],
+                    block: true
+                });
+            }
+            if (newScope) {
+                Object.defineProperty(node, propertyName, {
+                    value: newScope,
+                    configurable: true
+                });
+                scope = newScope;
+            }
+        },
+        leave(n) {
+            const node = n;
+            if (node[propertyName])
+                scope = scope.parent;
+        }
+    });
+    return scope;
+};
+
+// Helper since Typescript can't detect readonly arrays with Array.isArray
+function isArray(arg) {
+    return Array.isArray(arg);
+}
+function ensureArray(thing) {
+    if (isArray(thing))
+        return thing;
+    if (thing == null)
+        return [];
+    return [thing];
+}
+
+const normalizePathRegExp = new RegExp(`\\${path$2.win32.sep}`, 'g');
+const normalizePath$1 = function normalizePath(filename) {
+    return filename.replace(normalizePathRegExp, path$2.posix.sep);
+};
+
+function getMatcherString(id, resolutionBase) {
+    if (resolutionBase === false || path$2.isAbsolute(id) || id.startsWith('**')) {
+        return normalizePath$1(id);
+    }
+    // resolve('') is valid and will default to process.cwd()
+    const basePath = normalizePath$1(path$2.resolve(resolutionBase || ''))
+        // escape all possible (posix + win) path characters that might interfere with regex
+        .replace(/[-^$*+?.()|[\]{}]/g, '\\$&');
+    // Note that we use posix.join because:
+    // 1. the basePath has been normalized to use /
+    // 2. the incoming glob (id) matcher, also uses /
+    // otherwise Node will force backslash (\) on windows
+    return path$2.posix.join(basePath, normalizePath$1(id));
+}
+const createFilter = function createFilter(include, exclude, options) {
+    const resolutionBase = options && options.resolve;
+    const getMatcher = (id) => id instanceof RegExp
+        ? id
+        : {
+            test: (what) => {
+                // this refactor is a tad overly verbose but makes for easy debugging
+                const pattern = getMatcherString(id, resolutionBase);
+                const fn = pm$1(pattern, { dot: true });
+                const result = fn(what);
+                return result;
+            }
+        };
+    const includeMatchers = ensureArray(include).map(getMatcher);
+    const excludeMatchers = ensureArray(exclude).map(getMatcher);
+    if (!includeMatchers.length && !excludeMatchers.length)
+        return (id) => typeof id === 'string' && !id.includes('\0');
+    return function result(id) {
+        if (typeof id !== 'string')
+            return false;
+        if (id.includes('\0'))
+            return false;
+        const pathId = normalizePath$1(id);
+        for (let i = 0; i < excludeMatchers.length; ++i) {
+            const matcher = excludeMatchers[i];
+            if (matcher instanceof RegExp) {
+                matcher.lastIndex = 0;
+            }
+            if (matcher.test(pathId))
+                return false;
+        }
+        for (let i = 0; i < includeMatchers.length; ++i) {
+            const matcher = includeMatchers[i];
+            if (matcher instanceof RegExp) {
+                matcher.lastIndex = 0;
+            }
+            if (matcher.test(pathId))
+                return true;
+        }
+        return !includeMatchers.length;
+    };
+};
+
+const reservedWords = 'break case class catch const continue debugger default delete do else export extends finally for function if import in instanceof let new return super switch this throw try typeof var void while with yield enum await implements package protected static interface private public';
+const builtins = 'arguments Infinity NaN undefined null true false eval uneval isFinite isNaN parseFloat parseInt decodeURI decodeURIComponent encodeURI encodeURIComponent escape unescape Object Function Boolean Symbol Error EvalError InternalError RangeError ReferenceError SyntaxError TypeError URIError Number Math Date String RegExp Array Int8Array Uint8Array Uint8ClampedArray Int16Array Uint16Array Int32Array Uint32Array Float32Array Float64Array Map Set WeakMap WeakSet SIMD ArrayBuffer DataView JSON Promise Generator GeneratorFunction Reflect Proxy Intl';
+const forbiddenIdentifiers = new Set(`${reservedWords} ${builtins}`.split(' '));
+forbiddenIdentifiers.add('');
+const makeLegalIdentifier = function makeLegalIdentifier(str) {
+    let identifier = str
+        .replace(/-(\w)/g, (_, letter) => letter.toUpperCase())
+        .replace(/[^$_a-zA-Z0-9]/g, '_');
+    if (/\d/.test(identifier[0]) || forbiddenIdentifiers.has(identifier)) {
+        identifier = `_${identifier}`;
+    }
+    return identifier || '_';
+};
+
+var version$1 = "16.0.3";
+var peerDependencies$1 = {
+	rollup: "^2.78.0||^3.0.0||^4.0.0"
+};
+
+util$2.promisify(fs$2.access);
+const readFile$1 = util$2.promisify(fs$2.readFile);
+const realpath = util$2.promisify(fs$2.realpath);
+const stat = util$2.promisify(fs$2.stat);
+async function fileExists(filePath) {
+    try {
+        const res = await stat(filePath);
+        return res.isFile();
+    }
+    catch {
+        return false;
+    }
+}
+async function resolveSymlink(path) {
+    return (await fileExists(path)) ? realpath(path) : path;
+}
+
+const onError = (error) => {
+  if (error.code === 'ENOENT') {
+    return false;
+  }
+  throw error;
+};
+
+const makeCache = (fn) => {
+  const cache = new Map();
+  const wrapped = async (param, done) => {
+    if (cache.has(param) === false) {
+      cache.set(
+        param,
+        fn(param).catch((err) => {
+          cache.delete(param);
+          throw err;
+        })
+      );
+    }
+
+    try {
+      const result = cache.get(param);
+      const value = await result;
+      return done(null, value);
+    } catch (error) {
+      return done(error);
+    }
+  };
+
+  wrapped.clear = () => cache.clear();
+
+  return wrapped;
+};
+
+const isDirCached = makeCache(async (file) => {
+  try {
+    const stats = await stat(file);
+    return stats.isDirectory();
+  } catch (error) {
+    return onError(error);
+  }
+});
+
+const isFileCached = makeCache(async (file) => {
+  try {
+    const stats = await stat(file);
+    return stats.isFile();
+  } catch (error) {
+    return onError(error);
+  }
+});
+
+const readCachedFile = makeCache(readFile$1);
+
+function handleDeprecatedOptions(opts) {
+  const warnings = [];
+
+  if (opts.customResolveOptions) {
+    const { customResolveOptions } = opts;
+    if (customResolveOptions.moduleDirectory) {
+      // eslint-disable-next-line no-param-reassign
+      opts.moduleDirectories = Array.isArray(customResolveOptions.moduleDirectory)
+        ? customResolveOptions.moduleDirectory
+        : [customResolveOptions.moduleDirectory];
+
+      warnings.push(
+        'node-resolve: The `customResolveOptions.moduleDirectory` option has been deprecated. Use `moduleDirectories`, which must be an array.'
+      );
+    }
+
+    if (customResolveOptions.preserveSymlinks) {
+      throw new Error(
+        'node-resolve: `customResolveOptions.preserveSymlinks` is no longer an option. We now always use the rollup `preserveSymlinks` option.'
+      );
+    }
+
+    [
+      'basedir',
+      'package',
+      'extensions',
+      'includeCoreModules',
+      'readFile',
+      'isFile',
+      'isDirectory',
+      'realpath',
+      'packageFilter',
+      'pathFilter',
+      'paths',
+      'packageIterator'
+    ].forEach((resolveOption) => {
+      if (customResolveOptions[resolveOption]) {
+        throw new Error(
+          `node-resolve: \`customResolveOptions.${resolveOption}\` is no longer an option. If you need this, please open an issue.`
+        );
+      }
+    });
+  }
+
+  return { warnings };
+}
+
+// returns the imported package name for bare module imports
+function getPackageName(id) {
+  if (id.startsWith('.') || id.startsWith('/')) {
+    return null;
+  }
+
+  const split = id.split('/');
+
+  // @my-scope/my-package/foo.js -> @my-scope/my-package
+  // @my-scope/my-package -> @my-scope/my-package
+  if (split[0][0] === '@') {
+    return `${split[0]}/${split[1]}`;
+  }
+
+  // my-package/foo.js -> my-package
+  // my-package -> my-package
+  return split[0];
+}
+
+function getMainFields(options) {
+  let mainFields;
+  if (options.mainFields) {
+    ({ mainFields } = options);
+  } else {
+    mainFields = ['module', 'main'];
+  }
+  if (options.browser && mainFields.indexOf('browser') === -1) {
+    return ['browser'].concat(mainFields);
+  }
+  if (!mainFields.length) {
+    throw new Error('Please ensure at least one `mainFields` value is specified');
+  }
+  return mainFields;
+}
+
+function getPackageInfo(options) {
+  const {
+    cache,
+    extensions,
+    pkg,
+    mainFields,
+    preserveSymlinks,
+    useBrowserOverrides,
+    rootDir,
+    ignoreSideEffectsForRoot
+  } = options;
+  let { pkgPath } = options;
+
+  if (cache.has(pkgPath)) {
+    return cache.get(pkgPath);
+  }
+
+  // browserify/resolve doesn't realpath paths returned in its packageFilter callback
+  if (!preserveSymlinks) {
+    pkgPath = fs$2.realpathSync(pkgPath);
+  }
+
+  const pkgRoot = path$2.dirname(pkgPath);
+
+  const packageInfo = {
+    // copy as we are about to munge the `main` field of `pkg`.
+    packageJson: { ...pkg },
+
+    // path to package.json file
+    packageJsonPath: pkgPath,
+
+    // directory containing the package.json
+    root: pkgRoot,
+
+    // which main field was used during resolution of this module (main, module, or browser)
+    resolvedMainField: 'main',
+
+    // whether the browser map was used to resolve the entry point to this module
+    browserMappedMain: false,
+
+    // the entry point of the module with respect to the selected main field and any
+    // relevant browser mappings.
+    resolvedEntryPoint: ''
+  };
+
+  let overriddenMain = false;
+  for (let i = 0; i < mainFields.length; i++) {
+    const field = mainFields[i];
+    if (typeof pkg[field] === 'string') {
+      pkg.main = pkg[field];
+      packageInfo.resolvedMainField = field;
+      overriddenMain = true;
+      break;
+    }
+  }
+
+  const internalPackageInfo = {
+    cachedPkg: pkg,
+    hasModuleSideEffects: () => null,
+    hasPackageEntry: overriddenMain !== false || mainFields.indexOf('main') !== -1,
+    packageBrowserField:
+      useBrowserOverrides &&
+      typeof pkg.browser === 'object' &&
+      Object.keys(pkg.browser).reduce((browser, key) => {
+        let resolved = pkg.browser[key];
+        if (resolved && resolved[0] === '.') {
+          resolved = path$2.resolve(pkgRoot, resolved);
+        }
+        /* eslint-disable no-param-reassign */
+        browser[key] = resolved;
+        if (key[0] === '.') {
+          const absoluteKey = path$2.resolve(pkgRoot, key);
+          browser[absoluteKey] = resolved;
+          if (!path$2.extname(key)) {
+            extensions.reduce((subBrowser, ext) => {
+              subBrowser[absoluteKey + ext] = subBrowser[key];
+              return subBrowser;
+            }, browser);
+          }
+        }
+        return browser;
+      }, {}),
+    packageInfo
+  };
+
+  const browserMap = internalPackageInfo.packageBrowserField;
+  if (
+    useBrowserOverrides &&
+    typeof pkg.browser === 'object' &&
+    // eslint-disable-next-line no-prototype-builtins
+    browserMap.hasOwnProperty(pkg.main)
+  ) {
+    packageInfo.resolvedEntryPoint = browserMap[pkg.main];
+    packageInfo.browserMappedMain = true;
+  } else {
+    // index.node is technically a valid default entrypoint as well...
+    packageInfo.resolvedEntryPoint = path$2.resolve(pkgRoot, pkg.main || 'index.js');
+    packageInfo.browserMappedMain = false;
+  }
+
+  if (!ignoreSideEffectsForRoot || rootDir !== pkgRoot) {
+    const packageSideEffects = pkg.sideEffects;
+    if (typeof packageSideEffects === 'boolean') {
+      internalPackageInfo.hasModuleSideEffects = () => packageSideEffects;
+    } else if (Array.isArray(packageSideEffects)) {
+      const finalPackageSideEffects = packageSideEffects.map((sideEffect) => {
+        /*
+         * The array accepts simple glob patterns to the relevant files... Patterns like .css, which do not include a /, will be treated like **\/.css.
+         * https://webpack.js.org/guides/tree-shaking/
+         */
+        if (sideEffect.includes('/')) {
+          return sideEffect;
+        }
+        return `**/${sideEffect}`;
+      });
+      internalPackageInfo.hasModuleSideEffects = createFilter(finalPackageSideEffects, null, {
+        resolve: pkgRoot
+      });
+    }
+  }
+
+  cache.set(pkgPath, internalPackageInfo);
+  return internalPackageInfo;
+}
+
+function normalizeInput(input) {
+  if (Array.isArray(input)) {
+    return input;
+  } else if (typeof input === 'object') {
+    return Object.values(input);
+  }
+
+  // otherwise it's a string
+  return [input];
+}
+
+/* eslint-disable no-await-in-loop */
+function isModuleDir(current, moduleDirs) {
+    return moduleDirs.some((dir) => current.endsWith(dir));
+}
+async function findPackageJson(base, moduleDirs) {
+    const { root } = path$2.parse(base);
+    let current = base;
+    while (current !== root && !isModuleDir(current, moduleDirs)) {
+        const pkgJsonPath = path$2.join(current, 'package.json');
+        if (await fileExists(pkgJsonPath)) {
+            const pkgJsonString = fs$2.readFileSync(pkgJsonPath, 'utf-8');
+            return { pkgJson: JSON.parse(pkgJsonString), pkgPath: current, pkgJsonPath };
+        }
+        current = path$2.resolve(current, '..');
+    }
+    return null;
+}
+function isUrl(str) {
+    try {
+        return !!new URL(str);
+    }
+    catch (_) {
+        return false;
+    }
+}
+/**
+ * Conditions is an export object where all keys are conditions like 'node' (aka do not with '.')
+ */
+function isConditions(exports) {
+    return typeof exports === 'object' && Object.keys(exports).every((k) => !k.startsWith('.'));
+}
+/**
+ * Mappings is an export object where all keys start with '.
+ */
+function isMappings(exports) {
+    return typeof exports === 'object' && !isConditions(exports);
+}
+/**
+ * Check for mixed exports, which are exports where some keys start with '.' and some do not
+ */
+function isMixedExports(exports) {
+    const keys = Object.keys(exports);
+    return keys.some((k) => k.startsWith('.')) && keys.some((k) => !k.startsWith('.'));
+}
+function createBaseErrorMsg(importSpecifier, importer) {
+    return `Could not resolve import "${importSpecifier}" in ${importer}`;
+}
+function createErrorMsg(context, reason, isImports) {
+    const { importSpecifier, importer, pkgJsonPath } = context;
+    const base = createBaseErrorMsg(importSpecifier, importer);
+    const field = isImports ? 'imports' : 'exports';
+    return `${base} using ${field} defined in ${pkgJsonPath}.${reason ? ` ${reason}` : ''}`;
+}
+class ResolveError extends Error {
+}
+class InvalidConfigurationError extends ResolveError {
+    constructor(context, reason) {
+        super(createErrorMsg(context, `Invalid "exports" field. ${reason}`));
+    }
+}
+class InvalidModuleSpecifierError extends ResolveError {
+    constructor(context, isImports, reason) {
+        super(createErrorMsg(context, reason, isImports));
+    }
+}
+class InvalidPackageTargetError extends ResolveError {
+    constructor(context, reason) {
+        super(createErrorMsg(context, reason));
+    }
+}
+
+/* eslint-disable no-await-in-loop, no-undefined */
+/**
+ * Check for invalid path segments
+ */
+function includesInvalidSegments(pathSegments, moduleDirs) {
+    const invalidSegments = ['', '.', '..', ...moduleDirs];
+    // contains any "", ".", "..", or "node_modules" segments, including percent encoded variants
+    return pathSegments.some((v) => invalidSegments.includes(v) || invalidSegments.includes(decodeURI(v)));
+}
+async function resolvePackageTarget(context, { target, patternMatch, isImports }) {
+    // If target is a String, then
+    if (typeof target === 'string') {
+        // If target does not start with "./", then
+        if (!target.startsWith('./')) {
+            // If isImports is false, or if target starts with "../" or "/", or if target is a valid URL, then
+            if (!isImports || ['/', '../'].some((p) => target.startsWith(p)) || isUrl(target)) {
+                // Throw an Invalid Package Target error.
+                throw new InvalidPackageTargetError(context, `Invalid mapping: "${target}".`);
+            }
+            // If patternMatch is a String, then
+            if (typeof patternMatch === 'string') {
+                // Return PACKAGE_RESOLVE(target with every instance of "*" replaced by patternMatch, packageURL + "/")
+                const result = await context.resolveId(target.replace(/\*/g, patternMatch), context.pkgURL.href);
+                return result ? url$2.pathToFileURL(result.location).href : null;
+            }
+            // Return PACKAGE_RESOLVE(target, packageURL + "/").
+            const result = await context.resolveId(target, context.pkgURL.href);
+            return result ? url$2.pathToFileURL(result.location).href : null;
+        }
+        // TODO: Drop if we do not support Node <= 16 anymore
+        // This behavior was removed in Node 17 (deprecated in Node 14), see DEP0148
+        if (context.allowExportsFolderMapping) {
+            target = target.replace(/\/$/, '/*');
+        }
+        // If target split on "/" or "\"
+        {
+            const pathSegments = target.split(/\/|\\/);
+            // after the first "." segment
+            const firstDot = pathSegments.indexOf('.');
+            firstDot !== -1 && pathSegments.slice(firstDot);
+            if (firstDot !== -1 &&
+                firstDot < pathSegments.length - 1 &&
+                includesInvalidSegments(pathSegments.slice(firstDot + 1), context.moduleDirs)) {
+                throw new InvalidPackageTargetError(context, `Invalid mapping: "${target}".`);
+            }
+        }
+        // Let resolvedTarget be the URL resolution of the concatenation of packageURL and target.
+        const resolvedTarget = new URL(target, context.pkgURL);
+        // Assert: resolvedTarget is contained in packageURL.
+        if (!resolvedTarget.href.startsWith(context.pkgURL.href)) {
+            throw new InvalidPackageTargetError(context, `Resolved to ${resolvedTarget.href} which is outside package ${context.pkgURL.href}`);
+        }
+        // If patternMatch is null, then
+        if (!patternMatch) {
+            // Return resolvedTarget.
+            return resolvedTarget;
+        }
+        // If patternMatch split on "/" or "\" contains invalid segments
+        if (includesInvalidSegments(patternMatch.split(/\/|\\/), context.moduleDirs)) {
+            // throw an Invalid Module Specifier error.
+            throw new InvalidModuleSpecifierError(context);
+        }
+        // Return the URL resolution of resolvedTarget with every instance of "*" replaced with patternMatch.
+        return resolvedTarget.href.replace(/\*/g, patternMatch);
+    }
+    // Otherwise, if target is an Array, then
+    if (Array.isArray(target)) {
+        // If _target.length is zero, return null.
+        if (target.length === 0) {
+            return null;
+        }
+        let lastError = null;
+        // For each item in target, do
+        for (const item of target) {
+            // Let resolved be the result of PACKAGE_TARGET_RESOLVE of the item
+            // continuing the loop on any Invalid Package Target error.
+            try {
+                const resolved = await resolvePackageTarget(context, {
+                    target: item,
+                    patternMatch,
+                    isImports
+                });
+                // If resolved is undefined, continue the loop.
+                // Else Return resolved.
+                if (resolved !== undefined) {
+                    return resolved;
+                }
+            }
+            catch (error) {
+                if (!(error instanceof InvalidPackageTargetError)) {
+                    throw error;
+                }
+                else {
+                    lastError = error;
+                }
+            }
+        }
+        // Return or throw the last fallback resolution null return or error
+        if (lastError) {
+            throw lastError;
+        }
+        return null;
+    }
+    // Otherwise, if target is a non-null Object, then
+    if (target && typeof target === 'object') {
+        // For each property of target
+        for (const [key, value] of Object.entries(target)) {
+            // If exports contains any index property keys, as defined in ECMA-262 6.1.7 Array Index, throw an Invalid Package Configuration error.
+            // TODO: We do not check if the key is a number here...
+            // If key equals "default" or conditions contains an entry for the key, then
+            if (key === 'default' || context.conditions.includes(key)) {
+                // Let targetValue be the value of the property in target.
+                // Let resolved be the result of PACKAGE_TARGET_RESOLVE of the targetValue
+                const resolved = await resolvePackageTarget(context, {
+                    target: value,
+                    patternMatch,
+                    isImports
+                });
+                // If resolved is equal to undefined, continue the loop.
+                // Return resolved.
+                if (resolved !== undefined) {
+                    return resolved;
+                }
+            }
+        }
+        // Return undefined.
+        return undefined;
+    }
+    // Otherwise, if target is null, return null.
+    if (target === null) {
+        return null;
+    }
+    // Otherwise throw an Invalid Package Target error.
+    throw new InvalidPackageTargetError(context, `Invalid exports field.`);
+}
+
+/* eslint-disable no-await-in-loop */
+/**
+ * Implementation of Node's `PATTERN_KEY_COMPARE` function
+ */
+function nodePatternKeyCompare(keyA, keyB) {
+    // Let baseLengthA be the index of "*" in keyA plus one, if keyA contains "*", or the length of keyA otherwise.
+    const baseLengthA = keyA.includes('*') ? keyA.indexOf('*') + 1 : keyA.length;
+    // Let baseLengthB be the index of "*" in keyB plus one, if keyB contains "*", or the length of keyB otherwise.
+    const baseLengthB = keyB.includes('*') ? keyB.indexOf('*') + 1 : keyB.length;
+    // if baseLengthA is greater, return -1, if lower 1
+    const rval = baseLengthB - baseLengthA;
+    if (rval !== 0)
+        return rval;
+    // If keyA does not contain "*", return 1.
+    if (!keyA.includes('*'))
+        return 1;
+    // If keyB does not contain "*", return -1.
+    if (!keyB.includes('*'))
+        return -1;
+    // If the length of keyA is greater than the length of keyB, return -1.
+    // If the length of keyB is greater than the length of keyA, return 1.
+    // Else Return 0.
+    return keyB.length - keyA.length;
+}
+async function resolvePackageImportsExports(context, { matchKey, matchObj, isImports }) {
+    // If matchKey is a key of matchObj and does not contain "*", then
+    if (!matchKey.includes('*') && matchKey in matchObj) {
+        // Let target be the value of matchObj[matchKey].
+        const target = matchObj[matchKey];
+        // Return the result of PACKAGE_TARGET_RESOLVE(packageURL, target, null, isImports, conditions).
+        const resolved = await resolvePackageTarget(context, { target, patternMatch: '', isImports });
+        return resolved;
+    }
+    // Let expansionKeys be the list of keys of matchObj containing only a single "*"
+    const expansionKeys = Object.keys(matchObj)
+        // Assert: ends with "/" or contains only a single "*".
+        .filter((k) => k.endsWith('/') || k.includes('*'))
+        // sorted by the sorting function PATTERN_KEY_COMPARE which orders in descending order of specificity.
+        .sort(nodePatternKeyCompare);
+    // For each key expansionKey in expansionKeys, do
+    for (const expansionKey of expansionKeys) {
+        const indexOfAsterisk = expansionKey.indexOf('*');
+        // Let patternBase be the substring of expansionKey up to but excluding the first "*" character.
+        const patternBase = indexOfAsterisk === -1 ? expansionKey : expansionKey.substring(0, indexOfAsterisk);
+        // If matchKey starts with but is not equal to patternBase, then
+        if (matchKey.startsWith(patternBase) && matchKey !== patternBase) {
+            // Let patternTrailer be the substring of expansionKey from the index after the first "*" character.
+            const patternTrailer = indexOfAsterisk !== -1 ? expansionKey.substring(indexOfAsterisk + 1) : '';
+            // If patternTrailer has zero length,
+            if (patternTrailer.length === 0 ||
+                // or if matchKey ends with patternTrailer and the length of matchKey is greater than or equal to the length of expansionKey, then
+                (matchKey.endsWith(patternTrailer) && matchKey.length >= expansionKey.length)) {
+                // Let target be the value of matchObj[expansionKey].
+                const target = matchObj[expansionKey];
+                // Let patternMatch be the substring of matchKey starting at the index of the length of patternBase up to the length
+                // of matchKey minus the length of patternTrailer.
+                const patternMatch = matchKey.substring(patternBase.length, matchKey.length - patternTrailer.length);
+                // Return the result of PACKAGE_TARGET_RESOLVE
+                const resolved = await resolvePackageTarget(context, {
+                    target,
+                    patternMatch,
+                    isImports
+                });
+                return resolved;
+            }
+        }
+    }
+    throw new InvalidModuleSpecifierError(context, isImports);
+}
+
+/**
+ * Implementation of PACKAGE_EXPORTS_RESOLVE
+ */
+async function resolvePackageExports(context, subpath, exports) {
+    // If exports is an Object with both a key starting with "." and a key not starting with "."
+    if (isMixedExports(exports)) {
+        // throw an Invalid Package Configuration error.
+        throw new InvalidConfigurationError(context, 'All keys must either start with ./, or without one.');
+    }
+    // If subpath is equal to ".", then
+    if (subpath === '.') {
+        // Let mainExport be undefined.
+        let mainExport;
+        // If exports is a String or Array, or an Object containing no keys starting with ".", then
+        if (typeof exports === 'string' || Array.isArray(exports) || isConditions(exports)) {
+            // Set mainExport to exports
+            mainExport = exports;
+            // Otherwise if exports is an Object containing a "." property, then
+        }
+        else if (isMappings(exports)) {
+            // Set mainExport to exports["."]
+            mainExport = exports['.'];
+        }
+        // If mainExport is not undefined, then
+        if (mainExport) {
+            // Let resolved be the result of PACKAGE_TARGET_RESOLVE with target = mainExport
+            const resolved = await resolvePackageTarget(context, {
+                target: mainExport,
+                patternMatch: '',
+                isImports: false
+            });
+            // If resolved is not null or undefined, return resolved.
+            if (resolved) {
+                return resolved;
+            }
+        }
+        // Otherwise, if exports is an Object and all keys of exports start with ".", then
+    }
+    else if (isMappings(exports)) {
+        // Let resolved be the result of PACKAGE_IMPORTS_EXPORTS_RESOLVE
+        const resolvedMatch = await resolvePackageImportsExports(context, {
+            matchKey: subpath,
+            matchObj: exports,
+            isImports: false
+        });
+        // If resolved is not null or undefined, return resolved.
+        if (resolvedMatch) {
+            return resolvedMatch;
+        }
+    }
+    // Throw a Package Path Not Exported error.
+    throw new InvalidModuleSpecifierError(context);
+}
+
+async function resolvePackageImports({ importSpecifier, importer, moduleDirs, conditions, resolveId }) {
+    const result = await findPackageJson(importer, moduleDirs);
+    if (!result) {
+        throw new Error(`${createBaseErrorMsg(importSpecifier, importer)}. Could not find a parent package.json.`);
+    }
+    const { pkgPath, pkgJsonPath, pkgJson } = result;
+    const pkgURL = url$2.pathToFileURL(`${pkgPath}/`);
+    const context = {
+        importer,
+        importSpecifier,
+        moduleDirs,
+        pkgURL,
+        pkgJsonPath,
+        conditions,
+        resolveId
+    };
+    // Assert: specifier begins with "#".
+    if (!importSpecifier.startsWith('#')) {
+        throw new InvalidModuleSpecifierError(context, true, 'Invalid import specifier.');
+    }
+    // If specifier is exactly equal to "#" or starts with "#/", then
+    if (importSpecifier === '#' || importSpecifier.startsWith('#/')) {
+        // Throw an Invalid Module Specifier error.
+        throw new InvalidModuleSpecifierError(context, true, 'Invalid import specifier.');
+    }
+    const { imports } = pkgJson;
+    if (!imports) {
+        throw new InvalidModuleSpecifierError(context, true);
+    }
+    // Let packageURL be the result of LOOKUP_PACKAGE_SCOPE(parentURL).
+    // If packageURL is not null, then
+    return resolvePackageImportsExports(context, {
+        matchKey: importSpecifier,
+        matchObj: imports,
+        isImports: true
+    });
+}
+
+const resolveImportPath = util$2.promisify(resolve$1);
+const readFile = util$2.promisify(fs$2.readFile);
+
+async function getPackageJson(importer, pkgName, resolveOptions, moduleDirectories) {
+  if (importer) {
+    const selfPackageJsonResult = await findPackageJson(importer, moduleDirectories);
+    if (selfPackageJsonResult && selfPackageJsonResult.pkgJson.name === pkgName) {
+      // the referenced package name is the current package
+      return selfPackageJsonResult;
+    }
+  }
+
+  try {
+    const pkgJsonPath = await resolveImportPath(`${pkgName}/package.json`, resolveOptions);
+    const pkgJson = JSON.parse(await readFile(pkgJsonPath, 'utf-8'));
+    return { pkgJsonPath, pkgJson, pkgPath: path$2.dirname(pkgJsonPath) };
+  } catch (_) {
+    return null;
+  }
+}
+
+async function resolveIdClassic({
+  importSpecifier,
+  packageInfoCache,
+  extensions,
+  mainFields,
+  preserveSymlinks,
+  useBrowserOverrides,
+  baseDir,
+  moduleDirectories,
+  modulePaths,
+  rootDir,
+  ignoreSideEffectsForRoot
+}) {
+  let hasModuleSideEffects = () => null;
+  let hasPackageEntry = true;
+  let packageBrowserField = false;
+  let packageInfo;
+
+  const filter = (pkg, pkgPath) => {
+    const info = getPackageInfo({
+      cache: packageInfoCache,
+      extensions,
+      pkg,
+      pkgPath,
+      mainFields,
+      preserveSymlinks,
+      useBrowserOverrides,
+      rootDir,
+      ignoreSideEffectsForRoot
+    });
+
+    ({ packageInfo, hasModuleSideEffects, hasPackageEntry, packageBrowserField } = info);
+
+    return info.cachedPkg;
+  };
+
+  const resolveOptions = {
+    basedir: baseDir,
+    readFile: readCachedFile,
+    isFile: isFileCached,
+    isDirectory: isDirCached,
+    extensions,
+    includeCoreModules: false,
+    moduleDirectory: moduleDirectories,
+    paths: modulePaths,
+    preserveSymlinks,
+    packageFilter: filter
+  };
+
+  let location;
+  try {
+    location = await resolveImportPath(importSpecifier, resolveOptions);
+  } catch (error) {
+    if (error.code !== 'MODULE_NOT_FOUND') {
+      throw error;
+    }
+    return null;
+  }
+
+  return {
+    location: preserveSymlinks ? location : await resolveSymlink(location),
+    hasModuleSideEffects,
+    hasPackageEntry,
+    packageBrowserField,
+    packageInfo
+  };
+}
+
+async function resolveWithExportMap({
+  importer,
+  importSpecifier,
+  exportConditions,
+  packageInfoCache,
+  extensions,
+  mainFields,
+  preserveSymlinks,
+  useBrowserOverrides,
+  baseDir,
+  moduleDirectories,
+  modulePaths,
+  rootDir,
+  ignoreSideEffectsForRoot,
+  allowExportsFolderMapping
+}) {
+  if (importSpecifier.startsWith('#')) {
+    // this is a package internal import, resolve using package imports field
+    const resolveResult = await resolvePackageImports({
+      importSpecifier,
+      importer,
+      moduleDirs: moduleDirectories,
+      conditions: exportConditions,
+      // Resolve targets of "imports" mappings using the same algorithm
+      // we use for normal specifiers: try export maps first and then
+      // fall back to classic resolution. This is important for cases
+      // like "#foo/*": "@scope/pkg/*" where the target package relies
+      // on "exports" to expose subpaths. Using the classic resolver
+      // alone would fail to find those subpaths.
+      resolveId(id /* , parent*/) {
+        return resolveImportSpecifiers({
+          importer,
+          importSpecifierList: [id],
+          exportConditions,
+          // pass-through of the rest of the context
+          packageInfoCache,
+          extensions,
+          mainFields,
+          preserveSymlinks,
+          useBrowserOverrides,
+          baseDir,
+          moduleDirectories,
+          modulePaths,
+          rootDir,
+          ignoreSideEffectsForRoot,
+          allowExportsFolderMapping
+        });
+      }
+    });
+
+    if (resolveResult == null) {
+      // When the target of an "imports" mapping cannot be resolved,
+      // surface a proper resolve error instead of throwing from
+      // fileURLToPath(null).
+      throw new ResolveError(
+        `Could not resolve import "${importSpecifier}" in ${importer} using imports.`
+      );
+    }
+    const location = url$2.fileURLToPath(resolveResult);
+    return {
+      location: preserveSymlinks ? location : await resolveSymlink(location),
+      hasModuleSideEffects: () => null,
+      hasPackageEntry: true,
+      packageBrowserField: false,
+      // eslint-disable-next-line no-undefined
+      packageInfo: undefined
+    };
+  }
+
+  const pkgName = getPackageName(importSpecifier);
+  if (pkgName) {
+    // it's a bare import, find the package.json and resolve using package exports if available
+    let hasModuleSideEffects = () => null;
+    let hasPackageEntry = true;
+    let packageBrowserField = false;
+    let packageInfo;
+
+    const filter = (pkg, pkgPath) => {
+      const info = getPackageInfo({
+        cache: packageInfoCache,
+        extensions,
+        pkg,
+        pkgPath,
+        mainFields,
+        preserveSymlinks,
+        useBrowserOverrides,
+        rootDir,
+        ignoreSideEffectsForRoot
+      });
+
+      ({ packageInfo, hasModuleSideEffects, hasPackageEntry, packageBrowserField } = info);
+
+      return info.cachedPkg;
+    };
+
+    const resolveOptions = {
+      basedir: baseDir,
+      readFile: readCachedFile,
+      isFile: isFileCached,
+      isDirectory: isDirCached,
+      extensions,
+      includeCoreModules: false,
+      moduleDirectory: moduleDirectories,
+      paths: modulePaths,
+      preserveSymlinks,
+      packageFilter: filter
+    };
+
+    const result = await getPackageJson(importer, pkgName, resolveOptions, moduleDirectories);
+
+    if (result && result.pkgJson.exports) {
+      const { pkgJson, pkgJsonPath } = result;
+      const subpath =
+        pkgName === importSpecifier ? '.' : `.${importSpecifier.substring(pkgName.length)}`;
+      const pkgDr = pkgJsonPath.replace('package.json', '');
+      const pkgURL = url$2.pathToFileURL(pkgDr);
+
+      const context = {
+        importer,
+        importSpecifier,
+        moduleDirs: moduleDirectories,
+        pkgURL,
+        pkgJsonPath,
+        allowExportsFolderMapping,
+        conditions: exportConditions
+      };
+      const resolvedPackageExport = await resolvePackageExports(context, subpath, pkgJson.exports);
+      const location = url$2.fileURLToPath(resolvedPackageExport);
+      if (location) {
+        return {
+          location: preserveSymlinks ? location : await resolveSymlink(location),
+          hasModuleSideEffects,
+          hasPackageEntry,
+          packageBrowserField,
+          packageInfo
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
+async function resolveWithClassic({
+  importer,
+  importSpecifierList,
+  exportConditions,
+  warn,
+  packageInfoCache,
+  extensions,
+  mainFields,
+  preserveSymlinks,
+  useBrowserOverrides,
+  baseDir,
+  moduleDirectories,
+  modulePaths,
+  rootDir,
+  ignoreSideEffectsForRoot
+}) {
+  for (let i = 0; i < importSpecifierList.length; i++) {
+    // eslint-disable-next-line no-await-in-loop
+    const result = await resolveIdClassic({
+      importSpecifier: importSpecifierList[i],
+      packageInfoCache,
+      extensions,
+      mainFields,
+      preserveSymlinks,
+      useBrowserOverrides,
+      baseDir,
+      moduleDirectories,
+      modulePaths,
+      rootDir,
+      ignoreSideEffectsForRoot
+    });
+
+    if (result) {
+      return result;
+    }
+  }
+
+  return null;
+}
+
+// Resolves to the module if found or `null`.
+// The first import specifier will first be attempted with the exports algorithm.
+// If this is unsuccessful because export maps are not being used, then all of `importSpecifierList`
+// will be tried with the classic resolution algorithm
+async function resolveImportSpecifiers({
+  importer,
+  importSpecifierList,
+  exportConditions,
+  warn,
+  packageInfoCache,
+  extensions,
+  mainFields,
+  preserveSymlinks,
+  useBrowserOverrides,
+  baseDir,
+  moduleDirectories,
+  modulePaths,
+  rootDir,
+  ignoreSideEffectsForRoot,
+  allowExportsFolderMapping
+}) {
+  try {
+    const exportMapRes = await resolveWithExportMap({
+      importer,
+      importSpecifier: importSpecifierList[0],
+      exportConditions,
+      packageInfoCache,
+      extensions,
+      mainFields,
+      preserveSymlinks,
+      useBrowserOverrides,
+      baseDir,
+      moduleDirectories,
+      modulePaths,
+      rootDir,
+      ignoreSideEffectsForRoot,
+      allowExportsFolderMapping
+    });
+    if (exportMapRes) return exportMapRes;
+  } catch (error) {
+    if (error instanceof ResolveError) {
+      warn(error);
+      return null;
+    }
+    throw error;
+  }
+
+  // package has no imports or exports, use classic node resolve
+  return resolveWithClassic({
+    importer,
+    importSpecifierList,
+    exportConditions,
+    warn,
+    packageInfoCache,
+    extensions,
+    mainFields,
+    preserveSymlinks,
+    useBrowserOverrides,
+    baseDir,
+    moduleDirectories,
+    modulePaths,
+    rootDir,
+    ignoreSideEffectsForRoot
+  });
+}
+
+const versionRegexp = /\^(\d+\.\d+\.\d+)/g;
+
+function validateVersion$1(actualVersion, peerDependencyVersion) {
+  let minMajor = Infinity;
+  let minMinor = Infinity;
+  let minPatch = Infinity;
+  let foundVersion;
+  // eslint-disable-next-line no-cond-assign
+  while ((foundVersion = versionRegexp.exec(peerDependencyVersion))) {
+    const [foundMajor, foundMinor, foundPatch] = foundVersion[1].split('.').map(Number);
+    if (foundMajor < minMajor) {
+      minMajor = foundMajor;
+      minMinor = foundMinor;
+      minPatch = foundPatch;
+    }
+  }
+  if (!actualVersion) {
+    throw new Error(
+      `Insufficient Rollup version: "@rollup/plugin-node-resolve" requires at least rollup@${minMajor}.${minMinor}.${minPatch}.`
+    );
+  }
+  const [major, minor, patch] = actualVersion.split('.').map(Number);
+  if (
+    major < minMajor ||
+    (major === minMajor && (minor < minMinor || (minor === minMinor && patch < minPatch)))
+  ) {
+    throw new Error(
+      `Insufficient rollup version: "@rollup/plugin-node-resolve" requires at least rollup@${minMajor}.${minMinor}.${minPatch} but found rollup@${actualVersion}.`
+    );
+  }
+}
+
+/* eslint-disable no-param-reassign, no-shadow, no-undefined */
+
+const ES6_BROWSER_EMPTY = '\0node-resolve:empty.js';
+const deepFreeze = (object) => {
+  Object.freeze(object);
+
+  for (const value of Object.values(object)) {
+    if (typeof value === 'object' && !Object.isFrozen(value)) {
+      deepFreeze(value);
+    }
+  }
+
+  return object;
+};
+
+const baseConditions = ['default', 'module'];
+const baseConditionsEsm = [...baseConditions, 'import'];
+const baseConditionsCjs = [...baseConditions, 'require'];
+const defaults = {
+  dedupe: [],
+  // It's important that .mjs is listed before .js so that Rollup will interpret npm modules
+  // which deploy both ESM .mjs and CommonJS .js files as ESM.
+  extensions: ['.mjs', '.js', '.json', '.node'],
+  resolveOnly: [],
+  moduleDirectories: ['node_modules'],
+  modulePaths: [],
+  ignoreSideEffectsForRoot: false,
+  // TODO: set to false in next major release or remove
+  allowExportsFolderMapping: true
+};
+const nodeImportPrefix = /^node:/;
+
+deepFreeze(deepMerge({}, defaults));
+
+function nodeResolve(opts = {}) {
+  const { warnings } = handleDeprecatedOptions(opts);
+
+  const options = { ...defaults, ...opts };
+  const { extensions, jail, moduleDirectories, modulePaths, ignoreSideEffectsForRoot } = options;
+  const exportConditions = options.exportConditions || [];
+  const devProdCondition =
+    exportConditions.includes('development') || exportConditions.includes('production')
+      ? []
+      : [
+          process.env.NODE_ENV && process.env.NODE_ENV !== 'production'
+            ? 'development'
+            : 'production'
+        ];
+  const conditionsEsm = [...baseConditionsEsm, ...exportConditions, ...devProdCondition];
+  const conditionsCjs = [...baseConditionsCjs, ...exportConditions, ...devProdCondition];
+  const packageInfoCache = new Map();
+  const idToPackageInfo = new Map();
+  const mainFields = getMainFields(options);
+  const useBrowserOverrides = mainFields.indexOf('browser') !== -1;
+  const isPreferBuiltinsSet = Object.prototype.hasOwnProperty.call(options, 'preferBuiltins');
+  const preferBuiltins = isPreferBuiltinsSet ? options.preferBuiltins : true;
+  const rootDir = path$2.resolve(options.rootDir || process.cwd());
+  let { dedupe } = options;
+  let rollupOptions;
+
+  if (moduleDirectories.some((name) => name.includes('/'))) {
+    throw new Error(
+      '`moduleDirectories` option must only contain directory names. If you want to load modules from somewhere not supported by the default module resolution algorithm, see `modulePaths`.'
+    );
+  }
+
+  if (typeof dedupe !== 'function') {
+    dedupe = (importee) =>
+      options.dedupe.includes(importee) || options.dedupe.includes(getPackageName(importee));
+  }
+
+  // creates a function from the patterns to test if a particular module should be bundled.
+  const allowPatterns = (patterns) => {
+    const regexPatterns = patterns.map((pattern) => {
+      if (pattern instanceof RegExp) {
+        return pattern;
+      }
+      const normalized = pattern.replace(/[\\^$*+?.()|[\]{}]/g, '\\$&');
+      return new RegExp(`^${normalized}$`);
+    });
+    return (id) => !regexPatterns.length || regexPatterns.some((pattern) => pattern.test(id));
+  };
+
+  const resolveOnly =
+    typeof options.resolveOnly === 'function'
+      ? options.resolveOnly
+      : allowPatterns(options.resolveOnly);
+
+  const browserMapCache = new Map();
+  let preserveSymlinks;
+
+  const resolveLikeNode = async (context, importee, importer, custom) => {
+    // strip query params from import
+    const [importPath, params] = importee.split('?');
+    const importSuffix = `${params ? `?${params}` : ''}`;
+    importee = importPath;
+
+    const baseDir = !importer || dedupe(importee) ? rootDir : path$2.dirname(importer);
+
+    // https://github.com/defunctzombie/package-browser-field-spec
+    const browser = browserMapCache.get(importer);
+    if (useBrowserOverrides && browser) {
+      const resolvedImportee = path$2.resolve(baseDir, importee);
+      if (browser[importee] === false || browser[resolvedImportee] === false) {
+        return { id: ES6_BROWSER_EMPTY };
+      }
+      const browserImportee =
+        (importee[0] !== '.' && browser[importee]) ||
+        browser[resolvedImportee] ||
+        browser[`${resolvedImportee}.js`] ||
+        browser[`${resolvedImportee}.json`];
+      if (browserImportee) {
+        importee = browserImportee;
+      }
+    }
+
+    const parts = importee.split(/[/\\]/);
+    let id = parts.shift();
+    let isRelativeImport = false;
+
+    if (id[0] === '@' && parts.length > 0) {
+      // scoped packages
+      id += `/${parts.shift()}`;
+    } else if (id[0] === '.') {
+      // an import relative to the parent dir of the importer
+      id = path$2.resolve(baseDir, importee);
+      isRelativeImport = true;
+    }
+
+    // if it's not a relative import, and it's not requested, reject it.
+    if (!isRelativeImport && !resolveOnly(id)) {
+      if (normalizeInput(rollupOptions.input).includes(importee)) {
+        return null;
+      }
+      return false;
+    }
+
+    const importSpecifierList = [importee];
+
+    if (importer === undefined && importee[0] && !importee[0].match(/^\.?\.?\//)) {
+      // For module graph roots (i.e. when importer is undefined), we
+      // need to handle 'path fragments` like `foo/bar` that are commonly
+      // found in rollup config files. If importee doesn't look like a
+      // relative or absolute path, we make it relative and attempt to
+      // resolve it.
+      importSpecifierList.push(`./${importee}`);
+    }
+
+    // TypeScript files may import '.mjs' or '.cjs' to refer to either '.mts' or '.cts'.
+    // They may also import .js to refer to either .ts or .tsx, and .jsx to refer to .tsx.
+    if (importer && /\.(ts|mts|cts|tsx)$/.test(importer)) {
+      for (const [importeeExt, resolvedExt] of [
+        ['.js', '.ts'],
+        ['.js', '.tsx'],
+        ['.jsx', '.tsx'],
+        ['.mjs', '.mts'],
+        ['.cjs', '.cts']
+      ]) {
+        if (importee.endsWith(importeeExt) && extensions.includes(resolvedExt)) {
+          importSpecifierList.push(importee.slice(0, -importeeExt.length) + resolvedExt);
+        }
+      }
+    }
+
+    const warn = (...args) => context.warn(...args);
+    const isRequire = custom && custom['node-resolve'] && custom['node-resolve'].isRequire;
+    const exportConditions = isRequire ? conditionsCjs : conditionsEsm;
+    if (useBrowserOverrides && !exportConditions.includes('browser'))
+      exportConditions.push('browser');
+
+    const resolvedWithoutBuiltins = await resolveImportSpecifiers({
+      importer,
+      importSpecifierList,
+      exportConditions,
+      warn,
+      packageInfoCache,
+      extensions,
+      mainFields,
+      preserveSymlinks,
+      useBrowserOverrides,
+      baseDir,
+      moduleDirectories,
+      modulePaths,
+      rootDir,
+      ignoreSideEffectsForRoot,
+      allowExportsFolderMapping: options.allowExportsFolderMapping
+    });
+
+    const importeeIsBuiltin = module$3.builtinModules.includes(importee.replace(nodeImportPrefix, ''));
+    const preferImporteeIsBuiltin =
+      typeof preferBuiltins === 'function' ? preferBuiltins(importee) : preferBuiltins;
+    const resolved =
+      importeeIsBuiltin && preferImporteeIsBuiltin
+        ? {
+            packageInfo: undefined,
+            hasModuleSideEffects: () => null,
+            hasPackageEntry: true,
+            packageBrowserField: false
+          }
+        : resolvedWithoutBuiltins;
+    if (!resolved) {
+      return null;
+    }
+
+    const { packageInfo, hasModuleSideEffects, hasPackageEntry, packageBrowserField } = resolved;
+    let { location } = resolved;
+    if (packageBrowserField) {
+      if (Object.prototype.hasOwnProperty.call(packageBrowserField, location)) {
+        if (!packageBrowserField[location]) {
+          browserMapCache.set(location, packageBrowserField);
+          return { id: ES6_BROWSER_EMPTY };
+        }
+        location = packageBrowserField[location];
+      }
+      browserMapCache.set(location, packageBrowserField);
+    }
+
+    if (hasPackageEntry && !preserveSymlinks) {
+      const exists = await fileExists(location);
+      if (exists) {
+        location = await realpath(location);
+      }
+    }
+
+    idToPackageInfo.set(location, packageInfo);
+
+    if (hasPackageEntry) {
+      if (importeeIsBuiltin && preferImporteeIsBuiltin) {
+        if (!isPreferBuiltinsSet && resolvedWithoutBuiltins && resolved !== importee) {
+          context.warn({
+            message:
+              `preferring built-in module '${importee}' over local alternative at '${resolvedWithoutBuiltins.location}', pass 'preferBuiltins: false' to disable this behavior or 'preferBuiltins: true' to disable this warning.` +
+              `or passing a function to 'preferBuiltins' to provide more fine-grained control over which built-in modules to prefer.`,
+            pluginCode: 'PREFER_BUILTINS'
+          });
+        }
+        return false;
+      } else if (jail && location.indexOf(path$2.normalize(jail.trim(path$2.sep))) !== 0) {
+        return null;
+      }
+    }
+
+    if (options.modulesOnly && (await fileExists(location))) {
+      const code = await readFile$1(location, 'utf-8');
+      if (isModule(code)) {
+        return {
+          id: `${location}${importSuffix}`,
+          moduleSideEffects: hasModuleSideEffects(location)
+        };
+      }
+      return null;
+    }
+    return {
+      id: `${location}${importSuffix}`,
+      moduleSideEffects: hasModuleSideEffects(location)
+    };
+  };
+
+  return {
+    name: 'node-resolve',
+
+    version: version$1,
+
+    buildStart(buildOptions) {
+      validateVersion$1(this.meta.rollupVersion, peerDependencies$1.rollup);
+      rollupOptions = buildOptions;
+
+      for (const warning of warnings) {
+        this.warn(warning);
+      }
+
+      ({ preserveSymlinks } = buildOptions);
+    },
+
+    generateBundle() {
+      readCachedFile.clear();
+      isFileCached.clear();
+      isDirCached.clear();
+    },
+
+    resolveId: {
+      order: 'post',
+      async handler(importee, importer, resolveOptions) {
+        if (importee === ES6_BROWSER_EMPTY) {
+          return importee;
+        }
+        // ignore IDs with null character, these belong to other plugins
+        if (importee && importee.includes('\0')) return null;
+
+        const { custom = {} } = resolveOptions;
+        const { 'node-resolve': { resolved: alreadyResolved } = {} } = custom;
+        if (alreadyResolved) {
+          return alreadyResolved;
+        }
+
+        if (importer && importer.includes('\0')) {
+          importer = undefined;
+        }
+
+        const resolved = await resolveLikeNode(this, importee, importer, custom);
+        if (resolved) {
+          // This way, plugins may attach additional meta information to the
+          // resolved id or make it external. We do not skip node-resolve here
+          // because another plugin might again use `this.resolve` in its
+          // `resolveId` hook, in which case we want to add the correct
+          // `moduleSideEffects` information.
+          const resolvedResolved = await this.resolve(resolved.id, importer, {
+            ...resolveOptions,
+            skipSelf: false,
+            custom: { ...custom, 'node-resolve': { ...custom['node-resolve'], resolved, importee } }
+          });
+          if (resolvedResolved) {
+            // Handle plugins that manually make the result external
+            if (resolvedResolved.external) {
+              return false;
+            }
+            // Allow other plugins to take over resolution. Rollup core will not
+            // change the id if it corresponds to an existing file
+            if (resolvedResolved.id !== resolved.id) {
+              return resolvedResolved;
+            }
+            // Pass on meta information added by other plugins
+            return { ...resolved, meta: resolvedResolved.meta };
+          }
+        }
+        return resolved;
+      }
+    },
+
+    load(importee) {
+      if (importee === ES6_BROWSER_EMPTY) {
+        return 'export default {};';
+      }
+      return null;
+    },
+
+    getPackageInfoForId(id) {
+      return idToPackageInfo.get(id);
+    }
+  };
+}
+
+var commondir;
+var hasRequiredCommondir;
+
+function requireCommondir () {
+	if (hasRequiredCommondir) return commondir;
+	hasRequiredCommondir = 1;
+	var path = path$2;
+
+	commondir = function (basedir, relfiles) {
+	    if (relfiles) {
+	        var files = relfiles.map(function (r) {
+	            return path.resolve(basedir, r);
+	        });
+	    }
+	    else {
+	        var files = basedir;
+	    }
+	    
+	    var res = files.slice(1).reduce(function (ps, file) {
+	        if (!file.match(/^([A-Za-z]:)?\/|\\/)) {
+	            throw new Error('relative path without a basedir');
+	        }
+	        
+	        var xs = file.split(/\/+|\\+/);
+	        for (
+	            var i = 0;
+	            ps[i] === xs[i] && i < Math.min(ps.length, xs.length);
+	            i++
+	        );
+	        return ps.slice(0, i);
+	    }, files[0].split(/\/+|\\+/));
+	    
+	    // Windows correctly handles paths with forward-slashes
+	    return res.length > 1 ? res.join('/') : '/'
+	};
+	return commondir;
+}
+
+var commondirExports = requireCommondir();
+var getCommonDir = /*@__PURE__*/getDefaultExportFromCjs(commondirExports);
+
+//#region rolldown:runtime
+var __require = /* @__PURE__ */ module$3.createRequire((typeof document === 'undefined' ? require('u' + 'rl').pathToFileURL(__filename).href : (_documentCurrentScript && _documentCurrentScript.tagName.toUpperCase() === 'SCRIPT' && _documentCurrentScript.src || new URL('output-target.js', document.baseURI).href)));
+
+//#endregion
+//#region src/utils.ts
+function cleanPath(path) {
+	let normalized = path$2.normalize(path);
+	if (normalized.length > 1 && normalized[normalized.length - 1] === path$2.sep) normalized = normalized.substring(0, normalized.length - 1);
+	return normalized;
+}
+const SLASHES_REGEX = /[\\/]/g;
+function convertSlashes(path, separator) {
+	return path.replace(SLASHES_REGEX, separator);
+}
+const WINDOWS_ROOT_DIR_REGEX = /^[a-z]:[\\/]$/i;
+function isRootDirectory(path) {
+	return path === "/" || WINDOWS_ROOT_DIR_REGEX.test(path);
+}
+function normalizePath(path, options) {
+	const { resolvePaths, normalizePath: normalizePath$1, pathSeparator } = options;
+	const pathNeedsCleaning = process.platform === "win32" && path.includes("/") || path.startsWith(".");
+	if (resolvePaths) path = path$2.resolve(path);
+	if (normalizePath$1 || pathNeedsCleaning) path = cleanPath(path);
+	if (path === ".") return "";
+	const needsSeperator = path[path.length - 1] !== pathSeparator;
+	return convertSlashes(needsSeperator ? path + pathSeparator : path, pathSeparator);
+}
+
+//#endregion
+//#region src/api/functions/join-path.ts
+function joinPathWithBasePath(filename, directoryPath) {
+	return directoryPath + filename;
+}
+function joinPathWithRelativePath(root, options) {
+	return function(filename, directoryPath) {
+		const sameRoot = directoryPath.startsWith(root);
+		if (sameRoot) return directoryPath.slice(root.length) + filename;
+		else return convertSlashes(path$2.relative(root, directoryPath), options.pathSeparator) + options.pathSeparator + filename;
+	};
+}
+function joinPath(filename) {
+	return filename;
+}
+function joinDirectoryPath(filename, directoryPath, separator) {
+	return directoryPath + filename + separator;
+}
+function build$7(root, options) {
+	const { relativePaths, includeBasePath } = options;
+	return relativePaths && root ? joinPathWithRelativePath(root, options) : includeBasePath ? joinPathWithBasePath : joinPath;
+}
+
+//#endregion
+//#region src/api/functions/push-directory.ts
+function pushDirectoryWithRelativePath(root) {
+	return function(directoryPath, paths) {
+		paths.push(directoryPath.substring(root.length) || ".");
+	};
+}
+function pushDirectoryFilterWithRelativePath(root) {
+	return function(directoryPath, paths, filters) {
+		const relativePath = directoryPath.substring(root.length) || ".";
+		if (filters.every((filter) => filter(relativePath, true))) paths.push(relativePath);
+	};
+}
+const pushDirectory = (directoryPath, paths) => {
+	paths.push(directoryPath || ".");
+};
+const pushDirectoryFilter = (directoryPath, paths, filters) => {
+	const path = directoryPath || ".";
+	if (filters.every((filter) => filter(path, true))) paths.push(path);
+};
+const empty$2 = () => {};
+function build$6(root, options) {
+	const { includeDirs, filters, relativePaths } = options;
+	if (!includeDirs) return empty$2;
+	if (relativePaths) return filters && filters.length ? pushDirectoryFilterWithRelativePath(root) : pushDirectoryWithRelativePath(root);
+	return filters && filters.length ? pushDirectoryFilter : pushDirectory;
+}
+
+//#endregion
+//#region src/api/functions/push-file.ts
+const pushFileFilterAndCount = (filename, _paths, counts, filters) => {
+	if (filters.every((filter) => filter(filename, false))) counts.files++;
+};
+const pushFileFilter = (filename, paths, _counts, filters) => {
+	if (filters.every((filter) => filter(filename, false))) paths.push(filename);
+};
+const pushFileCount = (_filename, _paths, counts, _filters) => {
+	counts.files++;
+};
+const pushFile = (filename, paths) => {
+	paths.push(filename);
+};
+const empty$1 = () => {};
+function build$5(options) {
+	const { excludeFiles, filters, onlyCounts } = options;
+	if (excludeFiles) return empty$1;
+	if (filters && filters.length) return onlyCounts ? pushFileFilterAndCount : pushFileFilter;
+	else if (onlyCounts) return pushFileCount;
+	else return pushFile;
+}
+
+//#endregion
+//#region src/api/functions/get-array.ts
+const getArray = (paths) => {
+	return paths;
+};
+const getArrayGroup = () => {
+	return [""].slice(0, 0);
+};
+function build$4(options) {
+	return options.group ? getArrayGroup : getArray;
+}
+
+//#endregion
+//#region src/api/functions/group-files.ts
+const groupFiles = (groups, directory, files) => {
+	groups.push({
+		directory,
+		files,
+		dir: directory
+	});
+};
+const empty = () => {};
+function build$3(options) {
+	return options.group ? groupFiles : empty;
+}
+
+//#endregion
+//#region src/api/functions/resolve-symlink.ts
+const resolveSymlinksAsync = function(path, state, callback$1) {
+	const { queue, fs, options: { suppressErrors } } = state;
+	queue.enqueue();
+	fs.realpath(path, (error, resolvedPath) => {
+		if (error) return queue.dequeue(suppressErrors ? null : error, state);
+		fs.stat(resolvedPath, (error$1, stat) => {
+			if (error$1) return queue.dequeue(suppressErrors ? null : error$1, state);
+			if (stat.isDirectory() && isRecursive(path, resolvedPath, state)) return queue.dequeue(null, state);
+			callback$1(stat, resolvedPath);
+			queue.dequeue(null, state);
+		});
+	});
+};
+const resolveSymlinks = function(path, state, callback$1) {
+	const { queue, fs, options: { suppressErrors } } = state;
+	queue.enqueue();
+	try {
+		const resolvedPath = fs.realpathSync(path);
+		const stat = fs.statSync(resolvedPath);
+		if (stat.isDirectory() && isRecursive(path, resolvedPath, state)) return;
+		callback$1(stat, resolvedPath);
+	} catch (e) {
+		if (!suppressErrors) throw e;
+	}
+};
+function build$2(options, isSynchronous) {
+	if (!options.resolveSymlinks || options.excludeSymlinks) return null;
+	return isSynchronous ? resolveSymlinks : resolveSymlinksAsync;
+}
+function isRecursive(path, resolved, state) {
+	if (state.options.useRealPaths) return isRecursiveUsingRealPaths(resolved, state);
+	let parent = path$2.dirname(path);
+	let depth = 1;
+	while (parent !== state.root && depth < 2) {
+		const resolvedPath = state.symlinks.get(parent);
+		const isSameRoot = !!resolvedPath && (resolvedPath === resolved || resolvedPath.startsWith(resolved) || resolved.startsWith(resolvedPath));
+		if (isSameRoot) depth++;
+		else parent = path$2.dirname(parent);
+	}
+	state.symlinks.set(path, resolved);
+	return depth > 1;
+}
+function isRecursiveUsingRealPaths(resolved, state) {
+	return state.visited.includes(resolved + state.options.pathSeparator);
+}
+
+//#endregion
+//#region src/api/functions/invoke-callback.ts
+const onlyCountsSync = (state) => {
+	return state.counts;
+};
+const groupsSync = (state) => {
+	return state.groups;
+};
+const defaultSync = (state) => {
+	return state.paths;
+};
+const limitFilesSync = (state) => {
+	return state.paths.slice(0, state.options.maxFiles);
+};
+const onlyCountsAsync = (state, error, callback$1) => {
+	report(error, callback$1, state.counts, state.options.suppressErrors);
+	return null;
+};
+const defaultAsync = (state, error, callback$1) => {
+	report(error, callback$1, state.paths, state.options.suppressErrors);
+	return null;
+};
+const limitFilesAsync = (state, error, callback$1) => {
+	report(error, callback$1, state.paths.slice(0, state.options.maxFiles), state.options.suppressErrors);
+	return null;
+};
+const groupsAsync = (state, error, callback$1) => {
+	report(error, callback$1, state.groups, state.options.suppressErrors);
+	return null;
+};
+function report(error, callback$1, output, suppressErrors) {
+	if (error && !suppressErrors) callback$1(error, output);
+	else callback$1(null, output);
+}
+function build$1(options, isSynchronous) {
+	const { onlyCounts, group, maxFiles } = options;
+	if (onlyCounts) return isSynchronous ? onlyCountsSync : onlyCountsAsync;
+	else if (group) return isSynchronous ? groupsSync : groupsAsync;
+	else if (maxFiles) return isSynchronous ? limitFilesSync : limitFilesAsync;
+	else return isSynchronous ? defaultSync : defaultAsync;
+}
+
+//#endregion
+//#region src/api/functions/walk-directory.ts
+const readdirOpts = { withFileTypes: true };
+const walkAsync = (state, crawlPath, directoryPath, currentDepth, callback$1) => {
+	state.queue.enqueue();
+	if (currentDepth < 0) return state.queue.dequeue(null, state);
+	const { fs } = state;
+	state.visited.push(crawlPath);
+	state.counts.directories++;
+	fs.readdir(crawlPath || ".", readdirOpts, (error, entries = []) => {
+		callback$1(entries, directoryPath, currentDepth);
+		state.queue.dequeue(state.options.suppressErrors ? null : error, state);
+	});
+};
+const walkSync = (state, crawlPath, directoryPath, currentDepth, callback$1) => {
+	const { fs } = state;
+	if (currentDepth < 0) return;
+	state.visited.push(crawlPath);
+	state.counts.directories++;
+	let entries = [];
+	try {
+		entries = fs.readdirSync(crawlPath || ".", readdirOpts);
+	} catch (e) {
+		if (!state.options.suppressErrors) throw e;
+	}
+	callback$1(entries, directoryPath, currentDepth);
+};
+function build(isSynchronous) {
+	return isSynchronous ? walkSync : walkAsync;
+}
+
+//#endregion
+//#region src/api/queue.ts
+/**
+* This is a custom stateless queue to track concurrent async fs calls.
+* It increments a counter whenever a call is queued and decrements it
+* as soon as it completes. When the counter hits 0, it calls onQueueEmpty.
+*/
+var Queue = class {
+	count = 0;
+	constructor(onQueueEmpty) {
+		this.onQueueEmpty = onQueueEmpty;
+	}
+	enqueue() {
+		this.count++;
+		return this.count;
+	}
+	dequeue(error, output) {
+		if (this.onQueueEmpty && (--this.count <= 0 || error)) {
+			this.onQueueEmpty(error, output);
+			if (error) {
+				output.controller.abort();
+				this.onQueueEmpty = void 0;
+			}
+		}
+	}
+};
+
+//#endregion
+//#region src/api/counter.ts
+var Counter = class {
+	_files = 0;
+	_directories = 0;
+	set files(num) {
+		this._files = num;
+	}
+	get files() {
+		return this._files;
+	}
+	set directories(num) {
+		this._directories = num;
+	}
+	get directories() {
+		return this._directories;
+	}
+	/**
+	* @deprecated use `directories` instead
+	*/
+	/* c8 ignore next 3 */
+	get dirs() {
+		return this._directories;
+	}
+};
+
+//#endregion
+//#region src/api/aborter.ts
+/**
+* AbortController is not supported on Node 14 so we use this until we can drop
+* support for Node 14.
+*/
+var Aborter = class {
+	aborted = false;
+	abort() {
+		this.aborted = true;
+	}
+};
+
+//#endregion
+//#region src/api/walker.ts
+var Walker = class {
+	root;
+	isSynchronous;
+	state;
+	joinPath;
+	pushDirectory;
+	pushFile;
+	getArray;
+	groupFiles;
+	resolveSymlink;
+	walkDirectory;
+	callbackInvoker;
+	constructor(root, options, callback$1) {
+		this.isSynchronous = !callback$1;
+		this.callbackInvoker = build$1(options, this.isSynchronous);
+		this.root = normalizePath(root, options);
+		this.state = {
+			root: isRootDirectory(this.root) ? this.root : this.root.slice(0, -1),
+			paths: [""].slice(0, 0),
+			groups: [],
+			counts: new Counter(),
+			options,
+			queue: new Queue((error, state) => this.callbackInvoker(state, error, callback$1)),
+			symlinks: /* @__PURE__ */ new Map(),
+			visited: [""].slice(0, 0),
+			controller: new Aborter(),
+			fs: options.fs || fs__namespace
+		};
+		this.joinPath = build$7(this.root, options);
+		this.pushDirectory = build$6(this.root, options);
+		this.pushFile = build$5(options);
+		this.getArray = build$4(options);
+		this.groupFiles = build$3(options);
+		this.resolveSymlink = build$2(options, this.isSynchronous);
+		this.walkDirectory = build(this.isSynchronous);
+	}
+	start() {
+		this.pushDirectory(this.root, this.state.paths, this.state.options.filters);
+		this.walkDirectory(this.state, this.root, this.root, this.state.options.maxDepth, this.walk);
+		return this.isSynchronous ? this.callbackInvoker(this.state, null) : null;
+	}
+	walk = (entries, directoryPath, depth) => {
+		const { paths, options: { filters, resolveSymlinks: resolveSymlinks$1, excludeSymlinks, exclude, maxFiles, signal, useRealPaths, pathSeparator }, controller } = this.state;
+		if (controller.aborted || signal && signal.aborted || maxFiles && paths.length > maxFiles) return;
+		const files = this.getArray(this.state.paths);
+		for (let i = 0; i < entries.length; ++i) {
+			const entry = entries[i];
+			if (entry.isFile() || entry.isSymbolicLink() && !resolveSymlinks$1 && !excludeSymlinks) {
+				const filename = this.joinPath(entry.name, directoryPath);
+				this.pushFile(filename, files, this.state.counts, filters);
+			} else if (entry.isDirectory()) {
+				let path = joinDirectoryPath(entry.name, directoryPath, this.state.options.pathSeparator);
+				if (exclude && exclude(entry.name, path)) continue;
+				this.pushDirectory(path, paths, filters);
+				this.walkDirectory(this.state, path, path, depth - 1, this.walk);
+			} else if (this.resolveSymlink && entry.isSymbolicLink()) {
+				let path = joinPathWithBasePath(entry.name, directoryPath);
+				this.resolveSymlink(path, this.state, (stat, resolvedPath) => {
+					if (stat.isDirectory()) {
+						resolvedPath = normalizePath(resolvedPath, this.state.options);
+						if (exclude && exclude(entry.name, useRealPaths ? resolvedPath : path + pathSeparator)) return;
+						this.walkDirectory(this.state, resolvedPath, useRealPaths ? resolvedPath : path + pathSeparator, depth - 1, this.walk);
+					} else {
+						resolvedPath = useRealPaths ? resolvedPath : path;
+						const filename = path$2.basename(resolvedPath);
+						const directoryPath$1 = normalizePath(path$2.dirname(resolvedPath), this.state.options);
+						resolvedPath = this.joinPath(filename, directoryPath$1);
+						this.pushFile(resolvedPath, files, this.state.counts, filters);
+					}
+				});
+			}
+		}
+		this.groupFiles(this.state.groups, directoryPath, files);
+	};
+};
+
+//#endregion
+//#region src/api/async.ts
+function promise(root, options) {
+	return new Promise((resolve$1, reject) => {
+		callback(root, options, (err, output) => {
+			if (err) return reject(err);
+			resolve$1(output);
+		});
+	});
+}
+function callback(root, options, callback$1) {
+	let walker = new Walker(root, options, callback$1);
+	walker.start();
+}
+
+//#endregion
+//#region src/api/sync.ts
+function sync(root, options) {
+	const walker = new Walker(root, options);
+	return walker.start();
+}
+
+//#endregion
+//#region src/builder/api-builder.ts
+var APIBuilder = class {
+	constructor(root, options) {
+		this.root = root;
+		this.options = options;
+	}
+	withPromise() {
+		return promise(this.root, this.options);
+	}
+	withCallback(cb) {
+		callback(this.root, this.options, cb);
+	}
+	sync() {
+		return sync(this.root, this.options);
+	}
+};
+
+//#endregion
+//#region src/builder/index.ts
+let pm = null;
+/* c8 ignore next 6 */
+try {
+	__require.resolve("picomatch");
+	pm = __require("picomatch");
+} catch {}
+var Builder = class {
+	globCache = {};
+	options = {
+		maxDepth: Infinity,
+		suppressErrors: true,
+		pathSeparator: path$2.sep,
+		filters: []
+	};
+	globFunction;
+	constructor(options) {
+		this.options = {
+			...this.options,
+			...options
+		};
+		this.globFunction = this.options.globFunction;
+	}
+	group() {
+		this.options.group = true;
+		return this;
+	}
+	withPathSeparator(separator) {
+		this.options.pathSeparator = separator;
+		return this;
+	}
+	withBasePath() {
+		this.options.includeBasePath = true;
+		return this;
+	}
+	withRelativePaths() {
+		this.options.relativePaths = true;
+		return this;
+	}
+	withDirs() {
+		this.options.includeDirs = true;
+		return this;
+	}
+	withMaxDepth(depth) {
+		this.options.maxDepth = depth;
+		return this;
+	}
+	withMaxFiles(limit) {
+		this.options.maxFiles = limit;
+		return this;
+	}
+	withFullPaths() {
+		this.options.resolvePaths = true;
+		this.options.includeBasePath = true;
+		return this;
+	}
+	withErrors() {
+		this.options.suppressErrors = false;
+		return this;
+	}
+	withSymlinks({ resolvePaths = true } = {}) {
+		this.options.resolveSymlinks = true;
+		this.options.useRealPaths = resolvePaths;
+		return this.withFullPaths();
+	}
+	withAbortSignal(signal) {
+		this.options.signal = signal;
+		return this;
+	}
+	normalize() {
+		this.options.normalizePath = true;
+		return this;
+	}
+	filter(predicate) {
+		this.options.filters.push(predicate);
+		return this;
+	}
+	onlyDirs() {
+		this.options.excludeFiles = true;
+		this.options.includeDirs = true;
+		return this;
+	}
+	exclude(predicate) {
+		this.options.exclude = predicate;
+		return this;
+	}
+	onlyCounts() {
+		this.options.onlyCounts = true;
+		return this;
+	}
+	crawl(root) {
+		return new APIBuilder(root || ".", this.options);
+	}
+	withGlobFunction(fn) {
+		this.globFunction = fn;
+		return this;
+	}
+	/**
+	* @deprecated Pass options using the constructor instead:
+	* ```ts
+	* new fdir(options).crawl("/path/to/root");
+	* ```
+	* This method will be removed in v7.0
+	*/
+	/* c8 ignore next 4 */
+	crawlWithOptions(root, options) {
+		this.options = {
+			...this.options,
+			...options
+		};
+		return new APIBuilder(root || ".", this.options);
+	}
+	glob(...patterns) {
+		if (this.globFunction) return this.globWithOptions(patterns);
+		return this.globWithOptions(patterns, ...[{ dot: true }]);
+	}
+	globWithOptions(patterns, ...options) {
+		const globFn = this.globFunction || pm;
+		/* c8 ignore next 5 */
+		if (!globFn) throw new Error("Please specify a glob function to use glob matching.");
+		var isMatch = this.globCache[patterns.join("\0")];
+		if (!isMatch) {
+			isMatch = globFn(patterns, ...options);
+			this.globCache[patterns.join("\0")] = isMatch;
+		}
+		this.options.filters.push((path) => isMatch(path));
+		return this;
+	}
+};
+
+// src/vlq.ts
+var comma = ",".charCodeAt(0);
+var semicolon = ";".charCodeAt(0);
+var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+var intToChar = new Uint8Array(64);
+var charToInt = new Uint8Array(128);
+for (let i = 0; i < chars.length; i++) {
+  const c = chars.charCodeAt(i);
+  intToChar[i] = c;
+  charToInt[c] = i;
+}
+function encodeInteger(builder, num, relative) {
+  let delta = num - relative;
+  delta = delta < 0 ? -delta << 1 | 1 : delta << 1;
+  do {
+    let clamped = delta & 31;
+    delta >>>= 5;
+    if (delta > 0) clamped |= 32;
+    builder.write(intToChar[clamped]);
+  } while (delta > 0);
+  return num;
+}
+
+// src/strings.ts
+var bufLength = 1024 * 16;
+var td = typeof TextDecoder !== "undefined" ? /* @__PURE__ */ new TextDecoder() : typeof Buffer !== "undefined" ? {
+  decode(buf) {
+    const out = Buffer.from(buf.buffer, buf.byteOffset, buf.byteLength);
+    return out.toString();
+  }
+} : {
+  decode(buf) {
+    let out = "";
+    for (let i = 0; i < buf.length; i++) {
+      out += String.fromCharCode(buf[i]);
+    }
+    return out;
+  }
+};
+var StringWriter = class {
+  constructor() {
+    this.pos = 0;
+    this.out = "";
+    this.buffer = new Uint8Array(bufLength);
+  }
+  write(v) {
+    const { buffer } = this;
+    buffer[this.pos++] = v;
+    if (this.pos === bufLength) {
+      this.out += td.decode(buffer);
+      this.pos = 0;
+    }
+  }
+  flush() {
+    const { buffer, out, pos } = this;
+    return pos > 0 ? out + td.decode(buffer.subarray(0, pos)) : out;
+  }
+};
+function encode(decoded) {
+  const writer = new StringWriter();
+  let sourcesIndex = 0;
+  let sourceLine = 0;
+  let sourceColumn = 0;
+  let namesIndex = 0;
+  for (let i = 0; i < decoded.length; i++) {
+    const line = decoded[i];
+    if (i > 0) writer.write(semicolon);
+    if (line.length === 0) continue;
+    let genColumn = 0;
+    for (let j = 0; j < line.length; j++) {
+      const segment = line[j];
+      if (j > 0) writer.write(comma);
+      genColumn = encodeInteger(writer, segment[0], genColumn);
+      if (segment.length === 1) continue;
+      sourcesIndex = encodeInteger(writer, segment[1], sourcesIndex);
+      sourceLine = encodeInteger(writer, segment[2], sourceLine);
+      sourceColumn = encodeInteger(writer, segment[3], sourceColumn);
+      if (segment.length === 4) continue;
+      namesIndex = encodeInteger(writer, segment[4], namesIndex);
+    }
+  }
+  return writer.flush();
 }
 
 class BitSet {
@@ -9209,7 +7262,7 @@ class Chunk {
 			// '  test'.trim()
 			//     split   -> '  ' + 'test'
 			//   ✔️ edit    -> '' + 'test'
-			//   ✖️ edit    -> 'test' + '' 
+			//   ✖️ edit    -> 'test' + ''
 			// TODO is this block necessary?...
 			newChunk.edit('', false);
 			this.content = '';
@@ -9301,6 +7354,9 @@ class SourceMap {
 		this.mappings = encode(properties.mappings);
 		if (typeof properties.x_google_ignoreList !== 'undefined') {
 			this.x_google_ignoreList = properties.x_google_ignoreList;
+		}
+		if (typeof properties.debugId !== 'undefined') {
+			this.debugId = properties.debugId;
 		}
 	}
 
@@ -9404,9 +7460,12 @@ class Mappings {
 
 	addEdit(sourceIndex, content, loc, nameIndex) {
 		if (content.length) {
+			const contentLengthMinusOne = content.length - 1;
 			let contentLineEnd = content.indexOf('\n', 0);
 			let previousContentLineEnd = -1;
-			while (contentLineEnd >= 0) {
+			// Loop through each line in the content and add a segment, but stop if the last line is empty,
+			// else code afterwards would fill one line too many
+			while (contentLineEnd >= 0 && contentLengthMinusOne > contentLineEnd) {
 				const segment = [this.generatedCodeColumn, sourceIndex, loc.line, loc.column];
 				if (nameIndex >= 0) {
 					segment.push(nameIndex);
@@ -9443,27 +7502,6 @@ class Mappings {
 		let charInHiresBoundary = false;
 
 		while (originalCharIndex < chunk.end) {
-			if (this.hires || first || sourcemapLocations.has(originalCharIndex)) {
-				const segment = [this.generatedCodeColumn, sourceIndex, loc.line, loc.column];
-
-				if (this.hires === 'boundary') {
-					// in hires "boundary", group segments per word boundary than per char
-					if (wordRegex.test(original[originalCharIndex])) {
-						// for first char in the boundary found, start the boundary by pushing a segment
-						if (!charInHiresBoundary) {
-							this.rawSegments.push(segment);
-							charInHiresBoundary = true;
-						}
-					} else {
-						// for non-word char, end the boundary by pushing a segment
-						this.rawSegments.push(segment);
-						charInHiresBoundary = false;
-					}
-				} else {
-					this.rawSegments.push(segment);
-				}
-			}
-
 			if (original[originalCharIndex] === '\n') {
 				loc.line += 1;
 				loc.column = 0;
@@ -9471,7 +7509,29 @@ class Mappings {
 				this.raw[this.generatedCodeLine] = this.rawSegments = [];
 				this.generatedCodeColumn = 0;
 				first = true;
+				charInHiresBoundary = false;
 			} else {
+				if (this.hires || first || sourcemapLocations.has(originalCharIndex)) {
+					const segment = [this.generatedCodeColumn, sourceIndex, loc.line, loc.column];
+
+					if (this.hires === 'boundary') {
+						// in hires "boundary", group segments per word boundary than per char
+						if (wordRegex.test(original[originalCharIndex])) {
+							// for first char in the boundary found, start the boundary by pushing a segment
+							if (!charInHiresBoundary) {
+								this.rawSegments.push(segment);
+								charInHiresBoundary = true;
+							}
+						} else {
+							// for non-word char, end the boundary by pushing a segment
+							this.rawSegments.push(segment);
+							charInHiresBoundary = false;
+						}
+					} else {
+						this.rawSegments.push(segment);
+					}
+				}
+
 				loc.column += 1;
 				this.generatedCodeColumn += 1;
 				first = false;
@@ -9527,6 +7587,7 @@ class MagicString {
 			storedNames: { writable: true, value: {} },
 			indentStr: { writable: true, value: undefined },
 			ignoreList: { writable: true, value: options.ignoreList },
+			offset: { writable: true, value: options.offset || 0 },
 		});
 
 		this.byStart[0] = chunk;
@@ -9545,6 +7606,8 @@ class MagicString {
 	}
 
 	appendLeft(index, content) {
+		index = index + this.offset;
+
 		if (typeof content !== 'string') throw new TypeError('inserted content must be a string');
 
 		this._split(index);
@@ -9560,6 +7623,8 @@ class MagicString {
 	}
 
 	appendRight(index, content) {
+		index = index + this.offset;
+
 		if (typeof content !== 'string') throw new TypeError('inserted content must be a string');
 
 		this._split(index);
@@ -9575,7 +7640,7 @@ class MagicString {
 	}
 
 	clone() {
-		const cloned = new MagicString(this.original, { filename: this.filename });
+		const cloned = new MagicString(this.original, { filename: this.filename, offset: this.offset });
 
 		let originalChunk = this.firstChunk;
 		let clonedChunk = (cloned.firstChunk = cloned.lastSearchedChunk = originalChunk.clone());
@@ -9642,6 +7707,10 @@ class MagicString {
 
 			if (chunk.outro.length) mappings.advance(chunk.outro);
 		});
+
+		if (this.outro) {
+			mappings.advance(this.outro);
+		}
 
 		return {
 			file: options.file ? options.file.split(/[/\\]/).pop() : undefined,
@@ -9773,7 +7842,7 @@ class MagicString {
 		if (!warned.insertLeft) {
 			console.warn(
 				'magicString.insertLeft(...) is deprecated. Use magicString.appendLeft(...) instead',
-			); // eslint-disable-line no-console
+			);
 			warned.insertLeft = true;
 		}
 
@@ -9784,7 +7853,7 @@ class MagicString {
 		if (!warned.insertRight) {
 			console.warn(
 				'magicString.insertRight(...) is deprecated. Use magicString.prependRight(...) instead',
-			); // eslint-disable-line no-console
+			);
 			warned.insertRight = true;
 		}
 
@@ -9792,6 +7861,10 @@ class MagicString {
 	}
 
 	move(start, end, index) {
+		start = start + this.offset;
+		end = end + this.offset;
+		index = index + this.offset;
+
 		if (index >= start && index <= end) throw new Error('Cannot move a selection inside itself');
 
 		this._split(start);
@@ -9834,10 +7907,15 @@ class MagicString {
 	}
 
 	update(start, end, content, options) {
+		start = start + this.offset;
+		end = end + this.offset;
+
 		if (typeof content !== 'string') throw new TypeError('replacement content must be a string');
 
-		while (start < 0) start += this.original.length;
-		while (end < 0) end += this.original.length;
+		if (this.original.length !== 0) {
+			while (start < 0) start += this.original.length;
+			while (end < 0) end += this.original.length;
+		}
 
 		if (end > this.original.length) throw new Error('end is out of bounds');
 		if (start === end)
@@ -9852,7 +7930,7 @@ class MagicString {
 			if (!warned.storeName) {
 				console.warn(
 					'The final argument to magicString.overwrite(...) should be an options object. See https://github.com/rich-harris/magic-string',
-				); // eslint-disable-line no-console
+				);
 				warned.storeName = true;
 			}
 
@@ -9903,6 +7981,8 @@ class MagicString {
 	}
 
 	prependLeft(index, content) {
+		index = index + this.offset;
+
 		if (typeof content !== 'string') throw new TypeError('inserted content must be a string');
 
 		this._split(index);
@@ -9918,6 +7998,8 @@ class MagicString {
 	}
 
 	prependRight(index, content) {
+		index = index + this.offset;
+
 		if (typeof content !== 'string') throw new TypeError('inserted content must be a string');
 
 		this._split(index);
@@ -9933,8 +8015,13 @@ class MagicString {
 	}
 
 	remove(start, end) {
-		while (start < 0) start += this.original.length;
-		while (end < 0) end += this.original.length;
+		start = start + this.offset;
+		end = end + this.offset;
+
+		if (this.original.length !== 0) {
+			while (start < 0) start += this.original.length;
+			while (end < 0) end += this.original.length;
+		}
 
 		if (start === end) return this;
 
@@ -9957,8 +8044,13 @@ class MagicString {
 	}
 
 	reset(start, end) {
-		while (start < 0) start += this.original.length;
-		while (end < 0) end += this.original.length;
+		start = start + this.offset;
+		end = end + this.offset;
+
+		if (this.original.length !== 0) {
+			while (start < 0) start += this.original.length;
+			while (end < 0) end += this.original.length;
+		}
 
 		if (start === end) return this;
 
@@ -10019,9 +8111,14 @@ class MagicString {
 		return this.intro + lineStr;
 	}
 
-	slice(start = 0, end = this.original.length) {
-		while (start < 0) start += this.original.length;
-		while (end < 0) end += this.original.length;
+	slice(start = 0, end = this.original.length - this.offset) {
+		start = start + this.offset;
+		end = end + this.offset;
+
+		if (this.original.length !== 0) {
+			while (start < 0) start += this.original.length;
+			while (end < 0) end += this.original.length;
+		}
 
 		let result = '';
 
@@ -10081,12 +8178,18 @@ class MagicString {
 		if (this.byStart[index] || this.byEnd[index]) return;
 
 		let chunk = this.lastSearchedChunk;
+		let previousChunk = chunk;
 		const searchForward = index > chunk.end;
 
 		while (chunk) {
 			if (chunk.contains(index)) return this._splitChunk(chunk, index);
 
 			chunk = searchForward ? this.byStart[chunk.end] : this.byEnd[chunk.start];
+
+			// Prevent infinite loop (e.g. via empty chunks, where start === end)
+			if (chunk === previousChunk) return;
+
+			previousChunk = chunk;
 		}
 	}
 
@@ -10250,21 +8353,21 @@ class MagicString {
 		if (searchValue.global) {
 			const matches = matchAll(searchValue, this.original);
 			matches.forEach((match) => {
-				if (match.index != null)
-					this.overwrite(
-						match.index,
-						match.index + match[0].length,
-						getReplacement(match, this.original),
-					);
+				if (match.index != null) {
+					const replacement = getReplacement(match, this.original);
+					if (replacement !== match[0]) {
+						this.overwrite(match.index, match.index + match[0].length, replacement);
+					}
+				}
 			});
 		} else {
 			const match = this.original.match(searchValue);
-			if (match && match.index != null)
-				this.overwrite(
-					match.index,
-					match.index + match[0].length,
-					getReplacement(match, this.original),
-				);
+			if (match && match.index != null) {
+				const replacement = getReplacement(match, this.original);
+				if (replacement !== match[0]) {
+					this.overwrite(match.index, match.index + match[0].length, replacement);
+				}
+			}
 		}
 		return this;
 	}
@@ -10274,7 +8377,12 @@ class MagicString {
 		const index = original.indexOf(string);
 
 		if (index !== -1) {
-			this.overwrite(index, index + string.length, replacement);
+			if (typeof replacement === 'function') {
+				replacement = replacement(string, index, original);
+			}
+			if (string !== replacement) {
+				this.overwrite(index, index + string.length, replacement);
+			}
 		}
 
 		return this;
@@ -10296,7 +8404,12 @@ class MagicString {
 			index !== -1;
 			index = original.indexOf(string, index + stringLength)
 		) {
-			this.overwrite(index, index + stringLength, replacement);
+			const previous = original.slice(index, index + stringLength);
+			let _replacement = replacement;
+			if (typeof replacement === 'function') {
+				_replacement = replacement(previous, index, original);
+			}
+			if (previous !== _replacement) this.overwrite(index, index + stringLength, _replacement);
 		}
 
 		return this;
@@ -10347,7 +8460,7 @@ function isReference(node, parent) {
     return false;
 }
 
-var version = "28.0.8";
+var version = "28.0.9";
 var peerDependencies = {
 	rollup: "^2.68.0||^3.0.0||^4.0.0"
 };
@@ -10439,11 +8552,11 @@ function deconflict(scopes, globals, identifier) {
 }
 
 function getName(id) {
-  const name = makeLegalIdentifier(require$$0$1.basename(id, require$$0$1.extname(id)));
+  const name = makeLegalIdentifier(path$2.basename(id, path$2.extname(id)));
   if (name !== 'index') {
     return name;
   }
-  return makeLegalIdentifier(require$$0$1.basename(require$$0$1.dirname(id)));
+  return makeLegalIdentifier(path$2.basename(path$2.dirname(id)));
 }
 
 function normalizePathSlashes(path) {
@@ -10451,7 +8564,7 @@ function normalizePathSlashes(path) {
 }
 
 const getVirtualPathForDynamicRequirePath = (path, commonDir) =>
-  `/${normalizePathSlashes(require$$0$1.relative(commonDir, path))}`;
+  `/${normalizePathSlashes(path$2.relative(commonDir, path))}`;
 
 function capitalize(name) {
   return name[0].toUpperCase() + name.slice(1);
@@ -10484,9 +8597,9 @@ function getPackageEntryPoint(dirPath) {
   let entryPoint = 'index.js';
 
   try {
-    if (fs$2.existsSync(require$$0$1.join(dirPath, 'package.json'))) {
+    if (fs$2.existsSync(path$2.join(dirPath, 'package.json'))) {
       entryPoint =
-        JSON.parse(fs$2.readFileSync(require$$0$1.join(dirPath, 'package.json'), { encoding: 'utf8' })).main ||
+        JSON.parse(fs$2.readFileSync(path$2.join(dirPath, 'package.json'), { encoding: 'utf8' })).main ||
         entryPoint;
     }
   } catch (ignored) {
@@ -10515,22 +8628,22 @@ function getDynamicRequireModules(patterns, dynamicRequireRoot) {
         ? dynamicRequireModules.delete(targetPath)
         : dynamicRequireModules.set(targetPath, resolvedPath);
     // eslint-disable-next-line new-cap
-    for (const path of new distExports.fdir()
+    for (const path of new Builder()
       .withBasePath()
       .withDirs()
       .glob(isNegated ? pattern.substr(1) : pattern)
-      .crawl(require$$0$1.relative('.', dynamicRequireRoot))
+      .crawl(path$2.relative('.', dynamicRequireRoot))
       .sync()
       .sort((a, b) => a.localeCompare(b, 'en'))) {
-      const resolvedPath = require$$0$1.resolve(path);
+      const resolvedPath = path$2.resolve(path);
       const requirePath = normalizePathSlashes(resolvedPath);
       if (isDirectory(resolvedPath)) {
         dirNames.add(resolvedPath);
-        const modulePath = require$$0$1.resolve(require$$0$1.join(resolvedPath, getPackageEntryPoint(path)));
+        const modulePath = path$2.resolve(path$2.join(resolvedPath, getPackageEntryPoint(path)));
         modifyMap(requirePath, modulePath);
         modifyMap(normalizePathSlashes(modulePath), modulePath);
       } else {
-        dirNames.add(require$$0$1.dirname(resolvedPath));
+        dirNames.add(path$2.dirname(resolvedPath));
         modifyMap(requirePath, resolvedPath);
       }
     }
@@ -10847,7 +8960,7 @@ function getExternalBuiltinRequireProxy(id) {
 
 
 function getCandidatesForExtension(resolved, extension) {
-  return [resolved + extension, `${resolved}${require$$0$1.sep}index${extension}`];
+  return [resolved + extension, `${resolved}${path$2.sep}index${extension}`];
 }
 
 function getCandidates(resolved, extensions) {
@@ -10861,7 +8974,7 @@ function resolveExtensions(importee, importer, extensions) {
   // not our problem
   if (importee[0] !== '.' || !importer) return undefined;
 
-  const resolved = require$$0$1.resolve(require$$0$1.dirname(importer), importee);
+  const resolved = path$2.resolve(path$2.dirname(importer), importee);
   const candidates = getCandidates(resolved, extensions);
 
   for (let i = 0; i < candidates.length; i += 1) {
@@ -11177,15 +9290,20 @@ function getRequireResolver(extensions, detectCyclesAndConditional, currentlyRes
           // Special-case external Node built-ins to be handled via a lazy __require
           // helper instead of hoisted ESM imports when strict wrapping is used.
           const isExternalWrapped = isWrappedId(dependencyId, EXTERNAL_SUFFIX);
-          if (
-            parentMeta.initialCommonJSType === IS_WRAPPED_COMMONJS &&
-            !allowProxy &&
-            isExternalWrapped
-          ) {
+          let resolvedDependencyId = dependencyId;
+          if (parentMeta.isCommonJS === IS_WRAPPED_COMMONJS && !allowProxy && isExternalWrapped) {
             const actualExternalId = unwrapId(dependencyId, EXTERNAL_SUFFIX);
             if (actualExternalId.startsWith('node:')) {
               isCommonJS = IS_WRAPPED_COMMONJS;
               parentMeta.isRequiredCommonJS[dependencyId] = isCommonJS;
+            }
+          } else if (isExternalWrapped && !allowProxy) {
+            // If the parent is not wrapped but the dependency is a node: builtin external,
+            // unwrap the EXTERNAL_SUFFIX so it's treated as a normal external.
+            // This avoids trying to load the lazy __require proxy for non-wrapped contexts.
+            const actualExternalId = unwrapId(dependencyId, EXTERNAL_SUFFIX);
+            if (actualExternalId.startsWith('node:')) {
+              resolvedDependencyId = actualExternalId;
             }
           }
           const isWrappedCommonJS = isCommonJS === IS_WRAPPED_COMMONJS;
@@ -11207,8 +9325,8 @@ function getRequireResolver(extensions, detectCyclesAndConditional, currentlyRes
             wrappedModuleSideEffects,
             source: sources[index].source,
             id: allowProxy
-              ? wrapId(dependencyId, isWrappedCommonJS ? WRAPPED_SUFFIX : PROXY_SUFFIX)
-              : dependencyId,
+              ? wrapId(resolvedDependencyId, isWrappedCommonJS ? WRAPPED_SUFFIX : PROXY_SUFFIX)
+              : resolvedDependencyId,
             isCommonJS
           };
         });
@@ -11895,7 +10013,7 @@ async function transformCommonjs(
     require: false
   };
   const virtualDynamicRequirePath =
-    isDynamicRequireModulesEnabled && getVirtualPathForDynamicRequirePath(require$$0$1.dirname(id), commonDir);
+    isDynamicRequireModulesEnabled && getVirtualPathForDynamicRequirePath(path$2.dirname(id), commonDir);
   let scope = attachScopes(ast, 'scope');
   let lexicalDepth = 0;
   let programDepth = 0;
@@ -12426,7 +10544,7 @@ function commonjs(options = {}) {
   const extensions = options.extensions || ['.js'];
   const filter = createFilter(options.include, options.exclude);
   const isPossibleCjsId = (id) => {
-    const extName = require$$0$1.extname(id);
+    const extName = path$2.extname(id);
     return extName === '.cjs' || (extensions.includes(extName) && filter(id));
   };
 
@@ -12453,7 +10571,7 @@ function commonjs(options = {}) {
 
   const dynamicRequireRoot =
     typeof options.dynamicRequireRoot === 'string'
-      ? require$$0$1.resolve(options.dynamicRequireRoot)
+      ? path$2.resolve(options.dynamicRequireRoot)
       : process.cwd();
   const { commonDir, dynamicRequireModules } = getDynamicRequireModules(
     options.dynamicRequireTargets,
@@ -12528,7 +10646,7 @@ function commonjs(options = {}) {
             code: 'DYNAMIC_REQUIRE_OUTSIDE_ROOT',
             normalizedId,
             normalizedDynamicRequireRoot,
-            message: `"${normalizedId}" contains dynamic require statements but it is not within the current dynamicRequireRoot "${normalizedDynamicRequireRoot}". You should set dynamicRequireRoot to "${require$$0$1.dirname(
+            message: `"${normalizedId}" contains dynamic require statements but it is not within the current dynamicRequireRoot "${normalizedDynamicRequireRoot}". You should set dynamicRequireRoot to "${path$2.dirname(
               normalizedId
             )}" or one of its parent directories.`
           },
@@ -12606,7 +10724,7 @@ function commonjs(options = {}) {
             code: 'WRAPPED_IDS',
             ids: wrappedIds,
             message: `The commonjs plugin automatically wrapped the following files:\n[\n${wrappedIds
-              .map((id) => `\t${JSON.stringify(require$$0$1.relative(process.cwd(), id))}`)
+              .map((id) => `\t${JSON.stringify(path$2.relative(process.cwd(), id))}`)
               .join(',\n')}\n]`
           });
         } else {
@@ -12719,13 +10837,13 @@ const hydrateServerOutputTarget = (outputTarget) => ({
             return;
         }
         try {
-            const buildDirPath = require$$0$1.join(buildCtx.config.cacheDir || require$$0$1.join(buildCtx.config.rootDir, '.stencil'), 'nlx-hydrate-server');
+            const buildDirPath = path$2.join(buildCtx.config.cacheDir || path$2.join(buildCtx.config.rootDir, '.stencil'), 'nlx-hydrate-server');
             await promises.mkdir(buildDirPath, { recursive: true });
             const outputDirPath = outputTarget.dir;
             await promises.mkdir(outputDirPath, { recursive: true });
-            await promises.copyFile(require$$0$1.join(__dirname, 'server.js'), require$$0$1.join(buildDirPath, 'server.js'));
-            await promises.copyFile(buildCtx.hydrateAppFilePath, require$$0$1.join(buildDirPath, 'hydrate-app.js'));
-            await promises.writeFile(require$$0$1.join(buildDirPath, 'index.js'), `
+            await promises.copyFile(path$2.join(__dirname, 'server.js'), path$2.join(buildDirPath, 'server.js'));
+            await promises.copyFile(buildCtx.hydrateAppFilePath, path$2.join(buildDirPath, 'hydrate-app.js'));
+            await promises.writeFile(path$2.join(buildDirPath, 'index.js'), `
 const {createServer} = require('./server.js');
 const {renderToString} = require('./hydrate-app.js');
 
@@ -12736,12 +10854,12 @@ createServer(renderToString).listen(PORT, (error) => {
     console.log('Hydrate server listening on', PORT);
 });`);
             const rollupOptions = {
-                input: require$$0$1.join(buildDirPath, 'index.js'),
+                input: path$2.join(buildDirPath, 'index.js'),
                 treeshake: false,
                 plugins: [commonjs(), nodeResolve()]
             };
             const rollupBuild = await rollup.rollup(rollupOptions);
-            const outputFilePath = require$$0$1.join(outputDirPath, 'index.js');
+            const outputFilePath = path$2.join(outputDirPath, 'index.js');
             const rollupOutput = await rollupBuild.generate({
                 file: outputFilePath,
                 format: 'cjs'

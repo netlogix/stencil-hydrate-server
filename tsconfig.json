@@ -13,7 +13,9 @@
     "module": "ESNext",
     "declaration": true,
     "declarationDir": "dist",
+    "outDir": "dist",
     "rootDir": "./src",
     "lib": ["es2022"]
-  }
+  },
+  "exclude": ["src/**/*.test.ts"]
 }
