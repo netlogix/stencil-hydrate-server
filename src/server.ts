@@ -58,6 +58,14 @@ export const createServer = (
     }
 
     if (request.method !== 'POST') {
+      console.log(
+        logfmt({
+          time: new Date().toJSON(),
+          status: 405,
+          method: request.method,
+          url: request.url
+        })
+      )
       response.statusCode = 405
       response.end()
       return
@@ -97,58 +105,80 @@ export const createServer = (
       )
 
       if (results.httpStatus !== 200) {
+        console.log(
+          logfmt({
+            time: new Date().toJSON(),
+            status: 500,
+            statusMessage: 'Hydration error',
+            method: request.method,
+            url: request.url
+          })
+        )
         response.statusCode = 500
         response.statusMessage = 'Hydration error'
         response.end()
         return
       }
 
-      const resultHtmlDocumentString = isCompleteHtmlDocument(convertedBody)
-        ? convertCommentsToHtmlSpecialities(results.html ?? '')
-        : convertCommentsToHtmlSpecialities(extractFragments(results.html ?? '', !hasMetaCharsetTag(convertedBody)))
+      const resultHtmlDocumentString = convertCommentsToHtmlSpecialities(
+        isCompleteHtmlDocument(convertedBody)
+          ? (results.html ?? '')
+          : extractFragments(results.html ?? '', !hasMetaCharsetTag(convertedBody))
+      )
 
       response.writeHead(200, {'Content-Type': 'text/html'})
       response.write(resultHtmlDocumentString)
       response.end()
     } catch (error) {
+      console.log(
+        logfmt({
+          time: new Date().toJSON(),
+          status: 500,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      )
       response.statusCode = 500
       response.end()
     }
   })
 }
 
+const esiIncludeRegex = /<esi:include\s+src="([^"]*)"\s*\/?>/g
+const nbspRegex = /&nbsp;/g
+const esiIncludeCommentRegex = /<!-- ESI include: "([^"]*)" -->/g
+const nbspCommentRegex = /<!-- nlx-ssr-nbsp -->/g
+
 const convertHtmlSpecialitiesToComments = (html: string) => {
-  return html
-    .replace(/<esi:include\s+src="([^"]*)"\s*\/?>/g, '<!-- ESI include: "$1" -->')
-    .replace(/&nbsp;/g, '<!-- nlx-ssr-nbsp -->')
+  return html.replace(esiIncludeRegex, '<!-- ESI include: "$1" -->').replace(nbspRegex, '<!-- nlx-ssr-nbsp -->')
 }
 
 const convertCommentsToHtmlSpecialities = (html: string) => {
-  return html
-    .replace(/<!-- ESI include: "([^"]*)" -->/g, '<esi:include src="$1" />')
-    .replace(/<!-- nlx-ssr-nbsp -->/g, '&nbsp;')
+  return html.replace(esiIncludeCommentRegex, '<esi:include src="$1" />').replace(nbspCommentRegex, '&nbsp;')
 }
 
 const isCompleteHtmlDocument = (html: string) => {
   return /<html\b[^>]*>/i.test(html) && /<head\b[^>]*>/i.test(html) && /<body\b[^>]*>/i.test(html)
 }
 
+const metaCharsetRegex = /<meta\s[^>]*charset\s*=\s*["']?[^"'\s/>]+["']?[^>]*>/i
+
 const hasMetaCharsetTag = (html: string) => {
-  return parseHtmlToDocument(html).querySelector('meta[charset]') !== null
+  return metaCharsetRegex.test(html)
 }
 
 const extractFragments = (html: string, removeMetaCharsetTag: boolean) => {
   const document = parseHtmlToDocument(html)
 
-  if (removeMetaCharsetTag) {
-    const metaCharset = document.querySelector('meta[charset="utf-8"]')
+  const headElement = document.querySelector('head')
+
+  if (removeMetaCharsetTag && headElement) {
+    const metaCharset = headElement.querySelector('meta[charset="utf-8"]')
     if (metaCharset) {
       metaCharset.remove()
     }
   }
 
-  const head = document.querySelector('head') ? document.querySelector('head').toString() : ''
-
+  const head = headElement ? headElement.toString() : ''
   const body = document.querySelector('body') ? document.querySelector('body').toString() : ''
 
   return head + body

@@ -8,8 +8,12 @@
     "build": "concurrently \"npm:build:output-target\" \"npm:build:server\"",
     "build:output-target": "rollup --config rollup.config.output-target.ts --configPlugin typescript",
     "build:server": "rollup --config rollup.config.server.ts --configPlugin typescript",
-    "build:dev": "rollup -c -w",
+    "build:dev": "concurrently \"npm:build:dev:output-target\" \"npm:build:dev:server\"",
+    "build:dev:output-target": "rollup --config rollup.config.output-target.ts --configPlugin typescript -w",
+    "build:dev:server": "rollup --config rollup.config.server.ts --configPlugin typescript -w",
     "format": "prettier --write '**/*.ts'",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "version": "npm run build"
   },
   "repository": {
@@ -29,10 +33,11 @@
     "@rollup/plugin-typescript": "^12.1.4",
     "@stencil/core": "^4.38",
     "@types/node": "^24.9",
-    "concurrently": "^9.2.1",
+    "concurrently": "^9.2.4",
     "prettier": "^3.6.2",
     "tslib": "^2.8.1",
-    "typescript": "^5.9"
+    "typescript": "^5.9",
+    "vitest": "^4.1.10"
   },
   "engines": {
     "node": ">=20.0.0",
