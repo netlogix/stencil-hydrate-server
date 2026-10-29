@@ -1,7 +1,7 @@
 import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest'
 import type {Server} from 'http'
 import type {HydrateResults, SerializeDocumentOptions} from '@stencil/core/internal'
-import {createServer} from './server'
+import {createServer, type ServerOptions} from './server'
 
 const buildHydrateResults = (overrides: Partial<HydrateResults> = {}): HydrateResults => ({
   buildId: 'build-1',
@@ -29,8 +29,8 @@ const buildHydrateResults = (overrides: Partial<HydrateResults> = {}): HydrateRe
 
 type RenderToString = (html: string | any, options?: SerializeDocumentOptions) => Promise<HydrateResults>
 
-const startServer = async (renderToString: RenderToString) => {
-  const server = createServer(renderToString)
+const startServer = async (renderToString: RenderToString, options?: ServerOptions) => {
+  const server = createServer(renderToString, options)
   await new Promise<void>(resolve => server.listen(0, resolve))
   const address = server.address()
   if (address === null || typeof address === 'string') {
@@ -231,5 +231,122 @@ describe('createServer', () => {
     } finally {
       await stopServer(server)
     }
+  })
+  describe('onError hook', () => {
+    const post = (baseUrl: string, payload: string, headers: Record<string, string> = {}) =>
+      fetch(baseUrl, {method: 'POST', headers, body: payload})
+
+    it('reports exceptions with url, request id and body fingerprint, after responding with 500', async () => {
+      const onError = vi.fn()
+      const renderToString = vi.fn().mockRejectedValue(new Error('component exploded'))
+      const {server, baseUrl} = await startServer(renderToString, {onError})
+      const html = '<p>secret customer data</p>'
+
+      try {
+        const response = await post(baseUrl, JSON.stringify({body: html, url: '/page', labels: {}, settings: {}}), {
+          'X-Request-Id': 'req-123'
+        })
+
+        expect(response.status).toBe(500)
+        await vi.waitFor(() => expect(onError).toHaveBeenCalledTimes(1))
+
+        const [error, context] = onError.mock.calls[0]
+        expect(error).toBeInstanceOf(Error)
+        expect(error.message).toBe('component exploded')
+        expect(context).toEqual({
+          kind: 'exception',
+          url: '/page',
+          requestId: 'req-123',
+          bodyLength: html.length,
+          bodyHash: 'a3d6228643510560c95eca4d648583d282b1ee58eed14794d82917e6348f4b72'
+        })
+        expect(JSON.stringify(context)).not.toContain('secret customer data')
+      } finally {
+        await stopServer(server)
+      }
+    })
+
+    it('reports a non-200 hydration result with its diagnostics and build id', async () => {
+      const onError = vi.fn()
+      const diagnostics = [{level: 'error', type: 'hydrate', header: 'Boom', messageText: 'swiper is not defined'}]
+      const renderToString = vi
+        .fn()
+        .mockResolvedValue(buildHydrateResults({httpStatus: 500, diagnostics: diagnostics as any}))
+      const {server, baseUrl} = await startServer(renderToString, {onError})
+
+      try {
+        const response = await post(
+          baseUrl,
+          JSON.stringify({body: '<p>hi</p>', url: '/page', labels: {}, settings: {}})
+        )
+
+        expect(response.status).toBe(500)
+        await vi.waitFor(() => expect(onError).toHaveBeenCalledTimes(1))
+
+        const [error, context] = onError.mock.calls[0]
+        expect(error.message).toBe('Hydration error: swiper is not defined')
+        expect(context).toMatchObject({kind: 'hydration', url: '/page', buildId: 'build-1', diagnostics})
+        expect(context.requestId).toBeUndefined()
+      } finally {
+        await stopServer(server)
+      }
+    })
+
+    it('reports invalid JSON bodies without url or body fingerprint', async () => {
+      const onError = vi.fn()
+      const {server, baseUrl} = await startServer(vi.fn(), {onError})
+
+      try {
+        await post(baseUrl, 'not-json')
+        await vi.waitFor(() => expect(onError).toHaveBeenCalledTimes(1))
+
+        const [, context] = onError.mock.calls[0]
+        expect(context.kind).toBe('exception')
+        expect(context.url).toBeUndefined()
+        expect(context.bodyHash).toBeUndefined()
+      } finally {
+        await stopServer(server)
+      }
+    })
+
+    it('does not report successful renders', async () => {
+      const onError = vi.fn()
+      const renderToString = vi
+        .fn()
+        .mockResolvedValue(buildHydrateResults({html: '<html><head></head><body></body></html>'}))
+      const {server, baseUrl} = await startServer(renderToString, {onError})
+
+      try {
+        const response = await post(
+          baseUrl,
+          JSON.stringify({body: '<html><head></head><body></body></html>', url: '/', labels: {}, settings: {}})
+        )
+
+        expect(response.status).toBe(200)
+        expect(onError).not.toHaveBeenCalled()
+      } finally {
+        await stopServer(server)
+      }
+    })
+
+    it('keeps the 500 response and logs when the hook itself throws', async () => {
+      const onError = vi.fn(() => {
+        throw new Error('sentry down')
+      })
+      const renderToString = vi.fn().mockRejectedValue(new Error('component exploded'))
+      const {server, baseUrl} = await startServer(renderToString, {onError})
+
+      try {
+        const response = await post(baseUrl, JSON.stringify({body: '<p/>', url: '/', labels: {}, settings: {}}))
+
+        expect(response.status).toBe(500)
+        await vi.waitFor(() =>
+          expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('message="onError hook failed"'))
+        )
+        expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('error="sentry down"'))
+      } finally {
+        await stopServer(server)
+      }
+    })
   })
 })

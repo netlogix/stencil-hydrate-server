@@ -1,4 +1,5 @@
 import * as http from 'http'
+import {createHash} from 'crypto'
 import {parseHtmlToDocument} from '@stencil/core/mock-doc'
 import type {HydrateResults, SerializeDocumentOptions} from '@stencil/core/internal'
 
@@ -46,9 +47,53 @@ const logfmt = function (data: any, prefix: string = ''): string {
   return line.join(' ')
 }
 
+export interface ServerErrorContext {
+  /** `exception`: the request handler threw, `hydration`: renderToString reported a non-200 httpStatus */
+  kind: 'exception' | 'hydration'
+  /** URL of the page being rendered (from the request payload), not the URL of the hydrate server */
+  url?: string
+  /** Value of the incoming `X-Request-Id` header */
+  requestId?: string
+  buildId?: string
+  diagnostics?: HydrateResults['diagnostics']
+  /** Size and SHA-256 of the HTML to hydrate, so identical inputs can be recognised without exposing the HTML */
+  bodyLength?: number
+  bodyHash?: string
+}
+
+export interface ServerOptions {
+  /**
+   * Called after the error response was sent. Must not rely on the response, and a throwing hook never
+   * affects it: errors thrown by the hook are logged and swallowed.
+   */
+  onError?: (error: Error, context: ServerErrorContext) => void
+}
+
+const toError = (error: unknown): Error => (error instanceof Error ? error : new Error(String(error)))
+
 export const createServer = (
-  renderToString: (html: string | any, options?: SerializeDocumentOptions) => Promise<HydrateResults>
+  renderToString: (html: string | any, options?: SerializeDocumentOptions) => Promise<HydrateResults>,
+  options: ServerOptions = {}
 ) => {
+  const reportError = (error: Error, context: ServerErrorContext) => {
+    if (!options.onError) {
+      return
+    }
+
+    try {
+      options.onError(error, context)
+    } catch (hookError) {
+      console.log(
+        logfmt({
+          time: new Date().toJSON(),
+          level: 'error',
+          message: 'onError hook failed',
+          error: toError(hookError).message
+        })
+      )
+    }
+  }
+
   return http.createServer(async (request, response) => {
     if (request.method === 'GET' && request.url === '/healthz') {
       response.statusCode = 200
@@ -71,12 +116,23 @@ export const createServer = (
       return
     }
 
+    const requestIdHeader = request.headers['x-request-id']
+    const context: Omit<ServerErrorContext, 'kind'> = {
+      requestId: Array.isArray(requestIdHeader) ? requestIdHeader[0] : requestIdHeader
+    }
+
     try {
       const chunks = []
       for await (const chunk of request) {
         chunks.push(chunk)
       }
       const {body, url, labels, settings} = JSON.parse(Buffer.concat(chunks).toString())
+
+      context.url = typeof url === 'string' ? url : undefined
+      if (typeof body === 'string') {
+        context.bodyLength = body.length
+        context.bodyHash = createHash('sha256').update(body).digest('hex')
+      }
 
       const convertedBody = convertHtmlSpecialitiesToComments(body)
 
@@ -117,6 +173,14 @@ export const createServer = (
         response.statusCode = 500
         response.statusMessage = 'Hydration error'
         response.end()
+
+        const firstError = results.diagnostics?.find(diagnostic => diagnostic.level === 'error')
+        reportError(new Error(`Hydration error: ${firstError?.messageText ?? `httpStatus ${results.httpStatus}`}`), {
+          ...context,
+          kind: 'hydration',
+          buildId: results.buildId,
+          diagnostics: results.diagnostics
+        })
         return
       }
 
@@ -139,6 +203,8 @@ export const createServer = (
       )
       response.statusCode = 500
       response.end()
+
+      reportError(toError(error), {...context, kind: 'exception'})
     }
   })
 }
