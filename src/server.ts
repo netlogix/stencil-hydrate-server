@@ -256,12 +256,12 @@ export const createServer = (
       )
 
       if (results.httpStatus !== 200) {
-        outcome = 'hydration_error'
+        outcome = hasExceededTimeout(results) ? 'timeout' : 'hydration_error'
         console.log(
           logfmt({
             time: new Date().toJSON(),
             status: 500,
-            statusMessage: 'Hydration error',
+            statusMessage: outcome === 'timeout' ? 'Hydration timeout' : 'Hydration error',
             method: request.method,
             url: request.url
           })
@@ -311,6 +311,15 @@ export const createServer = (
 
   return server
 }
+
+/**
+ * Stencil reports an exceeded `timeout` only as a diagnostic, not as a status of its own.
+ *
+ * These renders are worth telling apart: Stencil closes the window while component promises may
+ * still be pending, and those keep their copy of the app in memory after the slot was released.
+ */
+const hasExceededTimeout = (results: HydrateResults) =>
+  results.diagnostics?.some(diagnostic => diagnostic.messageText?.startsWith('Hydrate exceeded timeout')) ?? false
 
 const esiIncludeRegex = /<esi:include\s+src="([^"]*)"\s*\/?>/g
 const nbspRegex = /&nbsp;/g

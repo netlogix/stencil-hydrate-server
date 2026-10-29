@@ -418,6 +418,36 @@ describe('createServer render concurrency', () => {
     }
   })
 
+  it('counts a render that exceeded the hydrate timeout separately from other hydration errors', async () => {
+    const renderToString = vi.fn().mockResolvedValue(
+      buildHydrateResults({
+        httpStatus: null as unknown as number,
+        diagnostics: [
+          {
+            level: 'error',
+            type: 'build',
+            header: 'Hydrate Error',
+            messageText: 'Hydrate exceeded timeout, waiting on: <my-component>',
+            lines: []
+          }
+        ]
+      })
+    )
+    const {server, baseUrl} = await startServer(renderToString)
+
+    try {
+      expect((await postPage(baseUrl)).status).toBe(500)
+
+      const metricsBody = await (await fetch(`${baseUrl}/metrics`)).text()
+
+      expect(metricsBody).toContain('hydrate_renders_total{result="timeout"} 1')
+      expect(metricsBody).toContain('hydrate_renders_total{result="hydration_error"} 0')
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('statusMessage="Hydration timeout"'))
+    } finally {
+      await stopServer(server)
+    }
+  })
+
   it('responds with 413 for a body larger than maxBodySize without rendering', async () => {
     const renderToString = vi.fn()
     const {server, baseUrl} = await startServer(renderToString, {maxBodySize: 64})
