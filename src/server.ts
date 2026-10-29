@@ -376,7 +376,8 @@ export const createServer = (
  * Stencil reports an exceeded `timeout` only as a diagnostic, not as a status of its own.
  *
  * These renders are worth telling apart: Stencil closes the window while component promises may
- * still be pending, and those keep their copy of the app in memory after the slot was released.
+ * still be pending. Before Stencil 4.45.0 those keep their copy of the app in memory after the slot
+ * was released; from 4.45.0 on only promises that can neither be aborted nor ever settle do.
  */
 const hasExceededTimeout = (results: HydrateResults) =>
   results.diagnostics?.some(diagnostic => diagnostic.messageText?.startsWith('Hydrate exceeded timeout')) ?? false

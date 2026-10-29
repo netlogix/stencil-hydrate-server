@@ -46,8 +46,10 @@ If your caller already falls back to the un-hydrated HTML on any status other th
 needs to change. The page is then rendered on the client only, slower but intact. Otherwise, add
 that fallback before upgrading.
 
-Check two settings for your deployment:
+Check these for your deployment:
 
+- Stencil 4.45.0 or later in the project that builds the hydrate app, see
+  [Renders that exceed the timeout](#renders-that-exceed-the-timeout).
 - `HYDRATE_CONCURRENCY` against the container's memory limit, see
   [Deployment recommendations](#deployment-recommendations).
 - `HYDRATE_QUEUE_WAIT_TIMEOUT` plus `HYDRATE_TIMEOUT` against your caller's timeout, see
@@ -72,11 +74,12 @@ requests could take a container from a few hundred megabytes to several gigabyte
 `JavaScript heap out of memory`.
 
 Once memory is tight, a second effect takes over: renders slow down, overrun Stencil's `timeout`,
-and `finalizeHydrate` closes their window while component promises are still pending. Stencil's
-`resetWindow` sets `win.fetch = null` among other things, so components that resume afterwards see
-a `globalThis` that has been torn out from under them and unrelated components start throwing.
-Limiting concurrency keeps renders fast enough that this state becomes rare, but it cannot rule it
-out, see [Known limitation](#known-limitation-renders-that-exceed-the-timeout).
+and `finalizeHydrate` closes their window while component promises are still pending. Before
+Stencil 4.45.0, `resetWindow` set `win.fetch = null` among other things, so components that resumed
+afterwards saw a `globalThis` that had been torn out from under them and unrelated components
+started throwing. Limiting concurrency keeps renders fast enough that this state becomes rare;
+Stencil 4.45.0 handles it when it still happens, see
+[Renders that exceed the timeout](#renders-that-exceed-the-timeout).
 
 ### If you see 503 responses after upgrading
 
@@ -151,18 +154,28 @@ lowered to it with a warning at startup.
   container as unhealthy. Allow for at least `HYDRATE_TIMEOUT` plus a long garbage collection pause,
   e.g. every 5 seconds with a 3 second timeout and 3 retries.
 
-## Known limitation: renders that exceed the timeout
+## Renders that exceed the timeout
 
 When a render exceeds `HYDRATE_TIMEOUT`, Stencil closes its window while component promises may
-still be pending. `renderToString` returns, the render slot is released and the next render starts,
-but the abandoned promises keep their copy of the app in memory until they settle. If a backend
-hangs and every render runs into the timeout, memory can still grow — more slowly than before, but
-without a bound in this server.
+still be pending. `renderToString` returns, the render slot is released and the next render starts.
+What happens to the abandoned promises depends on the Stencil version your project builds its
+hydrate app with:
 
-This is a Stencil limitation (see
-[stenciljs/core#6865](https://github.com/stenciljs/core/pull/6865)). These renders are counted as
-`hydrate_renders_total{result="timeout"}`, so alert on that alongside the garbage collection metric
-below:
+- **Before 4.45.0** they resume against the torn-down window, start throwing, and keep their copy
+  of the app in memory until they settle. If a backend hangs and every render runs into the
+  timeout, memory can still grow — more slowly than without the concurrency limit, but without a
+  bound in this server.
+- **From 4.45.0** ([stenciljs/core#6881](https://github.com/stenciljs/core/pull/6881)) Stencil
+  aborts their in-flight `fetch()` calls and any `AbortController` they created, so they settle
+  right away and release their memory. Only a promise that can neither be aborted nor ever
+  settles still keeps its render alive.
+
+**Use Stencil 4.45.0 or later** in the project that builds the hydrate app. The hydrate app and
+mock-doc come from your project's Stencil version, not from this package, so upgrading this
+package alone does not bring the fix.
+
+Either way these renders are counted as `hydrate_renders_total{result="timeout"}`, so alert on
+that alongside the garbage collection metric below:
 
 ```
 rate(hydrate_renders_total{result="timeout"}[5m]) > 0
