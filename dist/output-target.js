@@ -8460,7 +8460,7 @@ function isReference(node, parent) {
     return false;
 }
 
-var version = "28.0.9";
+var version = "29.0.2";
 var peerDependencies = {
 	rollup: "^2.68.0||^3.0.0||^4.0.0"
 };
@@ -8832,7 +8832,7 @@ export function getAugmentedNamespace(n) {
 			var isInstance = false;
       try {
         isInstance = this instanceof a;
-      } catch {}
+      } catch (e) {}
 			if (isInstance) {
         return Reflect.construct(f, arguments, this.constructor);
 			}
@@ -9104,7 +9104,12 @@ function getResolveId(extensions, isPossibleCjsId) {
   };
 }
 
-function getRequireResolver(extensions, detectCyclesAndConditional, currentlyResolving) {
+function getRequireResolver(
+  extensions,
+  detectCyclesAndConditional,
+  currentlyResolving,
+  requireNodeBuiltins
+) {
   const knownCjsModuleTypes = Object.create(null);
   const requiredIds = Object.create(null);
   const unconditionallyRequiredIds = Object.create(null);
@@ -9289,21 +9294,24 @@ function getRequireResolver(extensions, detectCyclesAndConditional, currentlyRes
             getTypeForFullyAnalyzedModule(dependencyId));
           // Special-case external Node built-ins to be handled via a lazy __require
           // helper instead of hoisted ESM imports when strict wrapping is used.
+          // Only apply this when requireNodeBuiltins option is enabled.
           const isExternalWrapped = isWrappedId(dependencyId, EXTERNAL_SUFFIX);
           let resolvedDependencyId = dependencyId;
-          if (parentMeta.isCommonJS === IS_WRAPPED_COMMONJS && !allowProxy && isExternalWrapped) {
-            const actualExternalId = unwrapId(dependencyId, EXTERNAL_SUFFIX);
-            if (actualExternalId.startsWith('node:')) {
-              isCommonJS = IS_WRAPPED_COMMONJS;
-              parentMeta.isRequiredCommonJS[dependencyId] = isCommonJS;
-            }
-          } else if (isExternalWrapped && !allowProxy) {
-            // If the parent is not wrapped but the dependency is a node: builtin external,
-            // unwrap the EXTERNAL_SUFFIX so it's treated as a normal external.
-            // This avoids trying to load the lazy __require proxy for non-wrapped contexts.
-            const actualExternalId = unwrapId(dependencyId, EXTERNAL_SUFFIX);
-            if (actualExternalId.startsWith('node:')) {
-              resolvedDependencyId = actualExternalId;
+          if (requireNodeBuiltins === true) {
+            if (parentMeta.isCommonJS === IS_WRAPPED_COMMONJS && !allowProxy && isExternalWrapped) {
+              const actualExternalId = unwrapId(dependencyId, EXTERNAL_SUFFIX);
+              if (actualExternalId.startsWith('node:')) {
+                isCommonJS = IS_WRAPPED_COMMONJS;
+                parentMeta.isRequiredCommonJS[dependencyId] = isCommonJS;
+              }
+            } else if (isExternalWrapped && !allowProxy) {
+              // If the parent is not wrapped but the dependency is a node: builtin external,
+              // unwrap the EXTERNAL_SUFFIX so it's treated as a normal external.
+              // This avoids trying to load the lazy __require proxy for non-wrapped contexts.
+              const actualExternalId = unwrapId(dependencyId, EXTERNAL_SUFFIX);
+              if (actualExternalId.startsWith('node:')) {
+                resolvedDependencyId = actualExternalId;
+              }
             }
           }
           const isWrappedCommonJS = isCommonJS === IS_WRAPPED_COMMONJS;
@@ -9369,6 +9377,20 @@ function validateVersion(actualVersion, peerDependencyVersion, name) {
   }
 }
 
+function triStateAnd(a, b) {
+  if (a === false) return false;
+  if (b === false) return false;
+  if (a === true && b === true) return true;
+  return null;
+}
+
+function triStateOr(a, b) {
+  if (a === true) return true;
+  if (b === true) return true;
+  if (a === false && b === false) return false;
+  return null;
+}
+
 const operators = {
   '==': (x) => equals(x.left, x.right, false),
 
@@ -9380,9 +9402,9 @@ const operators = {
 
   '!': (x) => isFalsy(x.argument),
 
-  '&&': (x) => isTruthy(x.left) && isTruthy(x.right),
+  '&&': (x) => triStateAnd(isTruthy(x.left), isTruthy(x.right)),
 
-  '||': (x) => isTruthy(x.left) || isTruthy(x.right)
+  '||': (x) => triStateOr(isTruthy(x.left), isTruthy(x.right))
 };
 
 function not(value) {
@@ -9480,6 +9502,10 @@ function getDefinePropertyCallName(node, targetName) {
 
 function isShorthandProperty(parent) {
   return parent && parent.type === 'Property' && parent.shorthand;
+}
+
+function isPropertyDefinitionKey(parent, node) {
+  return parent && parent.type === 'PropertyDefinition' && parent.key === node;
 }
 
 function wrapCode(magicString, uses, moduleName, exportsName, indentExclusionRanges) {
@@ -10236,7 +10262,7 @@ async function transformCommonjs(
           if (
             !isReference(node, parent) ||
             scope.contains(name) ||
-            (parent.type === 'PropertyDefinition' && parent.key === node)
+            isPropertyDefinitionKey(parent, node)
           )
             return;
           switch (name) {
@@ -10263,6 +10289,10 @@ async function transformCommonjs(
             case 'global':
               uses.global = true;
               if (!ignoreGlobal) {
+                if (isShorthandProperty(parent)) {
+                  skippedNodes.add(parent.value);
+                  magicString.prependRight(node.start, 'global: ');
+                }
                 replacedGlobal.push(node);
               }
               return;
@@ -10383,6 +10413,7 @@ async function transformCommonjs(
 
   for (const node of replacedGlobal) {
     magicString.overwrite(node.start, node.end, `${helpersName}.commonjsGlobal`, {
+      contentOnly: true,
       storeName: true
     });
   }
@@ -10539,7 +10570,8 @@ function commonjs(options = {}) {
     ignoreDynamicRequires,
     requireReturnsDefault: requireReturnsDefaultOption,
     defaultIsModuleExports: defaultIsModuleExportsOption,
-    esmExternals
+    esmExternals,
+    requireNodeBuiltins = false
   } = options;
   const extensions = options.extensions || ['.js'];
   const filter = createFilter(options.include, options.exclude);
@@ -10712,7 +10744,8 @@ function commonjs(options = {}) {
       requireResolver = getRequireResolver(
         extensions,
         detectCyclesAndConditional,
-        currentlyResolving
+        currentlyResolving,
+        requireNodeBuiltins
       );
     },
 
@@ -10760,7 +10793,7 @@ function commonjs(options = {}) {
 
       if (isWrappedId(id, EXTERNAL_SUFFIX)) {
         const actualId = unwrapId(id, EXTERNAL_SUFFIX);
-        if (actualId.startsWith('node:')) {
+        if (requireNodeBuiltins === true && actualId.startsWith('node:')) {
           return getExternalBuiltinRequireProxy(actualId);
         }
         return getUnknownRequireProxy(
