@@ -84,52 +84,26 @@ describe('resolveServerOptions', () => {
 })
 
 describe('validateServerOptions', () => {
-  it('accepts a budget that fits inside the request timeout', () => {
-    expect(
-      validateServerOptions({
-        ...DEFAULT_SERVER_OPTIONS,
-        queueWaitTimeout: 1500,
-        hydrateTimeout: 3000,
-        requestTimeout: 7000
-      })
-    ).toEqual([])
+  it('holds for the shipped defaults', () => {
+    expect(validateServerOptions({...DEFAULT_SERVER_OPTIONS})).toEqual([])
   })
 
-  it('warns when queue wait plus render budget can outlive the request', () => {
-    const warnings = validateServerOptions({
-      ...DEFAULT_SERVER_OPTIONS,
-      queueWaitTimeout: 5000,
-      hydrateTimeout: 15000,
-      requestTimeout: 10000
-    })
-
-    expect(warnings).toHaveLength(1)
-    expect(warnings[0]).toContain('outlive')
+  it('accepts a headers timeout equal to the request timeout', () => {
+    expect(validateServerOptions({...DEFAULT_SERVER_OPTIONS, headersTimeout: 7000, requestTimeout: 7000})).toEqual([])
   })
 
-  it('warns on the boundary case where the budget exactly matches the request timeout', () => {
-    const warnings = validateServerOptions({
-      ...DEFAULT_SERVER_OPTIONS,
-      queueWaitTimeout: 2000,
-      hydrateTimeout: 5000,
-      requestTimeout: 7000
-    })
+  it('warns and clamps a headers timeout that exceeds the request timeout', () => {
+    const options = {...DEFAULT_SERVER_OPTIONS, headersTimeout: 8000, requestTimeout: 6000}
+    const warnings = validateServerOptions(options)
 
-    expect(warnings).toHaveLength(1)
+    expect(warnings).toEqual([expect.stringContaining(ENV_VARIABLE_NAMES.headersTimeout)])
+    expect(options.headersTimeout).toBe(6000)
   })
 
   it('skips the check when the request timeout is disabled', () => {
-    expect(
-      validateServerOptions({
-        ...DEFAULT_SERVER_OPTIONS,
-        queueWaitTimeout: 5000,
-        hydrateTimeout: 15000,
-        requestTimeout: 0
-      })
-    ).toEqual([])
-  })
+    const options = {...DEFAULT_SERVER_OPTIONS, headersTimeout: 8000, requestTimeout: 0}
 
-  it('holds for the shipped defaults', () => {
-    expect(validateServerOptions(DEFAULT_SERVER_OPTIONS)).toEqual([])
+    expect(validateServerOptions(options)).toEqual([])
+    expect(options.headersTimeout).toBe(8000)
   })
 })

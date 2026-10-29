@@ -486,16 +486,13 @@ describe('createServer render concurrency', () => {
     }
   })
 
-  it('logs a warning when the configured budget lets renders outlive their request', async () => {
+  it('logs a warning when the configured options are inconsistent', async () => {
     const renderToString = vi.fn()
-    const {server} = await startServer(renderToString, {
-      queueWaitTimeout: 5000,
-      hydrateTimeout: 15000,
-      requestTimeout: 10000
-    })
+    const {server} = await startServer(renderToString, {headersTimeout: 8000, requestTimeout: 6000})
 
     try {
       expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('level=warn'))
+      expect(server.headersTimeout).toBe(6000)
     } finally {
       await stopServer(server)
     }

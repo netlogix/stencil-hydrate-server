@@ -14,9 +14,12 @@ export interface ServerOptions {
   queueWaitTimeout?: number
   /** Milliseconds a single render may take, passed to Stencil as `timeout`. */
   hydrateTimeout?: number
-  /** Milliseconds for `server.requestTimeout`. Acts as a last-resort backstop. */
+  /**
+   * Milliseconds for `server.requestTimeout`: how long a client may take to send the complete
+   * request. Protects against slow or stalled uploads. It does not limit how long a render takes.
+   */
   requestTimeout?: number
-  /** Milliseconds for `server.headersTimeout`. */
+  /** Milliseconds for `server.headersTimeout`: how long a client may take to send the headers. */
   headersTimeout?: number
   /** Maximum accepted request body size in bytes. Larger bodies are answered with 413. */
   maxBodySize?: number
@@ -117,25 +120,22 @@ export const resolveServerOptions = (
 }
 
 /**
- * Checks the invariants that keep renders from outliving the request that asked for them.
+ * Checks that the options are consistent with each other and corrects them where they are not.
  *
- * A render whose caller has already given up still runs to completion, then hits Stencil's
- * `timeout` handling, which calls `win.close()` while component promises may still be pending.
- * The window is reset underneath them (`resetWindow` sets `win.fetch = null` among other things),
- * so unrelated components start failing and the retained object graph is never released. Keeping
- * the queue wait plus the render budget below the request timeout avoids reaching that state.
+ * Node only enforces `headersTimeout <= requestTimeout` when both are passed to the `http.Server`
+ * constructor, not when they are assigned afterwards as done here. A larger `headersTimeout` would
+ * silently have no effect, so it is clamped to `requestTimeout` instead.
  */
 export const validateServerOptions = (options: ResolvedServerOptions): string[] => {
   const warnings: string[] = []
-  const budget = options.queueWaitTimeout + options.hydrateTimeout
 
-  if (options.requestTimeout > 0 && budget >= options.requestTimeout) {
+  if (options.requestTimeout > 0 && options.headersTimeout > options.requestTimeout) {
     warnings.push(
-      `queueWaitTimeout (${options.queueWaitTimeout}ms) + hydrateTimeout (${options.hydrateTimeout}ms) ` +
-        `>= requestTimeout (${options.requestTimeout}ms): renders can outlive their request. ` +
-        `Lower ${ENV_VARIABLE_NAMES.queueWaitTimeout} or ${ENV_VARIABLE_NAMES.hydrateTimeout}, ` +
+      `headersTimeout (${options.headersTimeout}ms) must not exceed requestTimeout (${options.requestTimeout}ms); ` +
+        `using ${options.requestTimeout}ms. Lower ${ENV_VARIABLE_NAMES.headersTimeout} ` +
         `or raise ${ENV_VARIABLE_NAMES.requestTimeout}.`
     )
+    options.headersTimeout = options.requestTimeout
   }
 
   return warnings
