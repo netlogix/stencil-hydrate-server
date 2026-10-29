@@ -1,5 +1,6 @@
 import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest'
 import type {Server} from 'http'
+import * as net from 'net'
 import type {HydrateResults, SerializeDocumentOptions} from '@stencil/core/internal'
 import {createServer, type ServerOptions} from './server'
 
@@ -537,6 +538,28 @@ describe('createServer render concurrency', () => {
       expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('status=499'))
     } finally {
       releaseAll()
+      await stopServer(server)
+    }
+  })
+
+  it('stops without rendering when the caller disconnects while still uploading the body', async () => {
+    const renderToString = vi.fn()
+    const {server, baseUrl} = await startServer(renderToString)
+
+    try {
+      const {port} = new URL(baseUrl)
+      const socket = net.connect(Number(port), '127.0.0.1')
+      await new Promise<void>(resolve => socket.once('connect', resolve))
+
+      socket.write('POST / HTTP/1.1\r\nHost: localhost\r\nContent-Length: 1000\r\n\r\n{"body":"<p>')
+      await new Promise(resolve => setTimeout(resolve, 20))
+      socket.destroy()
+      await new Promise(resolve => setTimeout(resolve, 20))
+
+      expect(renderToString).not.toHaveBeenCalled()
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('status=499'))
+      expect((await fetch(`${baseUrl}/healthz`)).status).toBe(200)
+    } finally {
       await stopServer(server)
     }
   })

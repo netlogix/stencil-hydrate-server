@@ -329,6 +329,21 @@ export const createServer = (
       response.write(resultHtmlDocumentString)
       response.end()
     } catch (error) {
+      if (!renderAttempted && abortController.signal.aborted) {
+        metrics.countRejected('client_disconnected')
+        console.log(
+          logfmt({
+            time: new Date().toJSON(),
+            status: 499,
+            statusMessage: 'Client disconnected while sending the request',
+            method: request.method,
+            url: request.url
+          })
+        )
+        response.destroy()
+        return
+      }
+
       if (renderAttempted) {
         outcome = 'error'
       }
