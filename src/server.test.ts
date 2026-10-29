@@ -236,7 +236,7 @@ describe('createServer', () => {
     const post = (baseUrl: string, payload: string, headers: Record<string, string> = {}) =>
       fetch(baseUrl, {method: 'POST', headers, body: payload})
 
-    it('reports exceptions with url, request id and body fingerprint, after responding with 500', async () => {
+    it('reports exceptions with url, trace id and body fingerprint, after responding with 500', async () => {
       const onError = vi.fn()
       const renderToString = vi.fn().mockRejectedValue(new Error('component exploded'))
       const {server, baseUrl} = await startServer(renderToString, {onError})
@@ -244,7 +244,7 @@ describe('createServer', () => {
 
       try {
         const response = await post(baseUrl, JSON.stringify({body: html, url: '/page', labels: {}, settings: {}}), {
-          'X-Request-Id': 'req-123'
+          traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01'
         })
 
         expect(response.status).toBe(500)
@@ -256,11 +256,31 @@ describe('createServer', () => {
         expect(context).toEqual({
           kind: 'exception',
           url: '/page',
-          requestId: 'req-123',
+          traceId: '4bf92f3577b34da6a3ce929d0e0e4736',
           bodyLength: html.length,
           bodyHash: 'a3d6228643510560c95eca4d648583d282b1ee58eed14794d82917e6348f4b72'
         })
         expect(JSON.stringify(context)).not.toContain('secret customer data')
+      } finally {
+        await stopServer(server)
+      }
+    })
+
+    it('falls back to X-Tracing-ID and ignores malformed trace headers', async () => {
+      const onError = vi.fn()
+      const renderToString = vi.fn().mockRejectedValue(new Error('boom'))
+      const {server, baseUrl} = await startServer(renderToString, {onError})
+      const payload = JSON.stringify({body: '<p/>', url: '/', labels: {}, settings: {}})
+
+      try {
+        await post(baseUrl, payload, {'X-Tracing-ID': '0123456789abcdef0123456789abcdef'})
+        await post(baseUrl, payload, {traceparent: 'garbage', 'X-Tracing-ID': 'not-hex'})
+        await post(baseUrl, payload, {traceparent: '00-00000000000000000000000000000000-00f067aa0ba902b7-01'})
+        await vi.waitFor(() => expect(onError).toHaveBeenCalledTimes(3))
+
+        expect(onError.mock.calls[0][1].traceId).toBe('0123456789abcdef0123456789abcdef')
+        expect(onError.mock.calls[1][1].traceId).toBeUndefined()
+        expect(onError.mock.calls[2][1].traceId).toBeUndefined()
       } finally {
         await stopServer(server)
       }
@@ -286,7 +306,7 @@ describe('createServer', () => {
         const [error, context] = onError.mock.calls[0]
         expect(error.message).toBe('Hydration error: swiper is not defined')
         expect(context).toMatchObject({kind: 'hydration', url: '/page', buildId: 'build-1', diagnostics})
-        expect(context.requestId).toBeUndefined()
+        expect(context.traceId).toBeUndefined()
       } finally {
         await stopServer(server)
       }

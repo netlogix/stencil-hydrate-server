@@ -52,8 +52,8 @@ export interface ServerErrorContext {
   kind: 'exception' | 'hydration'
   /** URL of the page being rendered (from the request payload), not the URL of the hydrate server */
   url?: string
-  /** Value of the incoming `X-Request-Id` header */
-  requestId?: string
+  /** Trace id of the incoming W3C `traceparent` header, or of the `X-Tracing-ID` header if there is no valid one */
+  traceId?: string
   buildId?: string
   diagnostics?: HydrateResults['diagnostics']
   /** Size and SHA-256 of the HTML to hydrate, so identical inputs can be recognised without exposing the HTML */
@@ -67,6 +67,20 @@ export interface ServerOptions {
    * affects it: errors thrown by the hook are logged and swallowed.
    */
   onError?: (error: Error, context: ServerErrorContext) => void
+}
+
+const traceparentRegex = /^00-(?!0{32})([0-9a-f]{32})-(?!0{16})[0-9a-f]{16}-[0-9a-f]{2}$/
+const tracingIdRegex = /^[0-9a-fA-F]{32}$/
+
+const getTraceId = (headers: http.IncomingHttpHeaders): string | undefined => {
+  const traceparent = headers['traceparent']
+  const fromTraceparent = typeof traceparent === 'string' ? traceparentRegex.exec(traceparent)?.[1] : undefined
+  if (fromTraceparent) {
+    return fromTraceparent
+  }
+
+  const tracingId = headers['x-tracing-id']
+  return typeof tracingId === 'string' && tracingIdRegex.test(tracingId) ? tracingId : undefined
 }
 
 const toError = (error: unknown): Error => (error instanceof Error ? error : new Error(String(error)))
@@ -116,9 +130,8 @@ export const createServer = (
       return
     }
 
-    const requestIdHeader = request.headers['x-request-id']
     const context: Omit<ServerErrorContext, 'kind'> = {
-      requestId: Array.isArray(requestIdHeader) ? requestIdHeader[0] : requestIdHeader
+      traceId: getTraceId(request.headers)
     }
 
     try {

@@ -46,7 +46,7 @@ The module is required by the generated server (and bundled with it, so it can i
 ```javascript
 exports.onError = (error, context) => {
   // context.kind: 'exception' (handler threw) | 'hydration' (renderToString returned a non-200 httpStatus)
-  // context.url, context.requestId (X-Request-Id header), context.buildId, context.diagnostics
+  // context.url, context.traceId (trace id of the traceparent header, else X-Tracing-ID), context.buildId, context.diagnostics
   // context.bodyLength, context.bodyHash (SHA-256 of the HTML to hydrate, the HTML itself is never passed)
 }
 ```

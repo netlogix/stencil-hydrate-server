@@ -5,8 +5,8 @@ export interface ServerErrorContext {
     kind: 'exception' | 'hydration';
     /** URL of the page being rendered (from the request payload), not the URL of the hydrate server */
     url?: string;
-    /** Value of the incoming `X-Request-Id` header */
-    requestId?: string;
+    /** Trace id of the incoming W3C `traceparent` header, or of the `X-Tracing-ID` header if there is no valid one */
+    traceId?: string;
     buildId?: string;
     diagnostics?: HydrateResults['diagnostics'];
     /** Size and SHA-256 of the HTML to hydrate, so identical inputs can be recognised without exposing the HTML */
