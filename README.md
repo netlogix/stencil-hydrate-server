@@ -30,9 +30,32 @@ This will generate server code for hydrating your Stencil components. You can th
 
 For more information on how to use Stencil output targets, please refer to the [Stencil documentation](https://stenciljs.com/docs/output-targets).
 
+## Upgrading to 2.0.0
+
+Version 2.0.0 changes how the generated server behaves under load. No code changes are required,
+but responses other than `200` become more frequent:
+
+| Status | When                                                                                   |
+| ------ | -------------------------------------------------------------------------------------- |
+| `503`  | No render slot became free within `HYDRATE_QUEUE_WAIT_TIMEOUT`, or the queue is full   |
+| `413`  | The request body is larger than `HYDRATE_MAX_BODY_SIZE` (default 2 MiB)                |
+| `400`  | The request body is not JSON with a string `body` (previously `500`)                   |
+| `500`  | The render exceeded `HYDRATE_TIMEOUT`, now 3.5 seconds instead of Stencil's 15 seconds |
+
+If your caller already falls back to the un-hydrated HTML on any status other than `200`, nothing
+needs to change. The page is then rendered on the client only, slower but intact. Otherwise, add
+that fallback before upgrading.
+
+Check two settings for your deployment:
+
+- `HYDRATE_CONCURRENCY` against the container's memory limit, see
+  [Deployment recommendations](#deployment-recommendations).
+- `HYDRATE_QUEUE_WAIT_TIMEOUT` plus `HYDRATE_TIMEOUT` against your caller's timeout, see
+  [Picking the timeouts](#picking-the-timeouts).
+
 ## Render concurrency
 
-Since version 1.6.0 the generated server renders **one page at a time by default** and queues the
+Since version 2.0.0 the generated server renders **one page at a time by default** and queues the
 rest. Previously it started a render for every incoming request immediately.
 
 The reason is how Stencil's hydrate app works: `renderToString` re-evaluates the entire hydrate
@@ -51,8 +74,9 @@ requests could take a container from a few hundred megabytes to several gigabyte
 Once memory is tight, a second effect takes over: renders slow down, overrun Stencil's `timeout`,
 and `finalizeHydrate` closes their window while component promises are still pending. Stencil's
 `resetWindow` sets `win.fetch = null` among other things, so components that resume afterwards see
-a `globalThis` that has been torn out from under them and unrelated components start throwing. The
-timeout defaults below are chosen so that this state is not reachable.
+a `globalThis` that has been torn out from under them and unrelated components start throwing.
+Limiting concurrency keeps renders fast enough that this state becomes rare, but it cannot rule it
+out, see [Known limitation](#known-limitation-renders-that-exceed-the-timeout).
 
 ### If you see 503 responses after upgrading
 
@@ -79,31 +103,70 @@ deployment the environment variables are the way in.
 | ------------------ | ---------------------------- | --------- | ----------------------------------------------------------- |
 | `maxConcurrency`   | `HYDRATE_CONCURRENCY`        | `1`       | Renders allowed to run at the same time                     |
 | `maxQueue`         | `HYDRATE_MAX_QUEUE`          | `32`      | Requests allowed to wait for a slot, then `503`             |
-| `queueWaitTimeout` | `HYDRATE_QUEUE_WAIT_TIMEOUT` | `2000`    | Milliseconds a request may wait for a slot, then `503`      |
-| `hydrateTimeout`   | `HYDRATE_TIMEOUT`            | `5000`    | Milliseconds a single render may take (Stencil's `timeout`) |
-| `requestTimeout`   | `HYDRATE_REQUEST_TIMEOUT`    | `10000`   | `server.requestTimeout`, a last resort backstop             |
-| `headersTimeout`   | `HYDRATE_HEADERS_TIMEOUT`    | `5000`    | `server.headersTimeout`                                     |
+| `queueWaitTimeout` | `HYDRATE_QUEUE_WAIT_TIMEOUT` | `1000`    | Milliseconds a request may wait for a slot, then `503`      |
+| `hydrateTimeout`   | `HYDRATE_TIMEOUT`            | `3500`    | Milliseconds a single render may take (Stencil's `timeout`) |
+| `requestTimeout`   | `HYDRATE_REQUEST_TIMEOUT`    | `10000`   | Milliseconds a client may take to send the whole request    |
+| `headersTimeout`   | `HYDRATE_HEADERS_TIMEOUT`    | `5000`    | Milliseconds a client may take to send the headers          |
 | `maxBodySize`      | `HYDRATE_MAX_BODY_SIZE`      | `2097152` | Largest accepted request body in bytes, then `413`          |
 
 ### Picking the timeouts
 
-Derive them from the timeout your caller uses, so that a render can never outlive the request that
-asked for it. Starting from a caller timeout of `T`:
-
-- `HYDRATE_QUEUE_WAIT_TIMEOUT` about `T / 3`, leaving two thirds of the budget for rendering
-- `HYDRATE_TIMEOUT` about `T` minus the queue wait, minus a small margin
-- `HYDRATE_REQUEST_TIMEOUT` slightly above `T`
-
-For a caller with a 5 second timeout:
+The server cannot know how long its caller waits. A render that is still running when the caller
+gives up renders for nobody, and with a single render slot every request behind it waits as well.
+So keep the queue wait plus the render budget below your caller's timeout:
 
 ```
-HYDRATE_QUEUE_WAIT_TIMEOUT=1500
-HYDRATE_TIMEOUT=3000
-HYDRATE_REQUEST_TIMEOUT=7000
+HYDRATE_QUEUE_WAIT_TIMEOUT + HYDRATE_TIMEOUT < caller timeout
 ```
 
-The server logs a warning at startup if `queueWaitTimeout + hydrateTimeout >= requestTimeout`,
-because that is exactly the configuration in which renders outlive their request.
+The defaults of 1000 + 3500 ms fit a caller timeout of 5 seconds with 500 ms left for the network
+and for serialising the response. For a caller with a 10 second timeout, for example:
+
+```
+HYDRATE_QUEUE_WAIT_TIMEOUT=2000
+HYDRATE_TIMEOUT=7500
+```
+
+`HYDRATE_REQUEST_TIMEOUT` and `HYDRATE_HEADERS_TIMEOUT` are unrelated to this. They map to Node's
+`server.requestTimeout` and `server.headersTimeout`, which only limit how long a client may take to
+_send_ the request and protect against slow or stalled uploads. They do not limit how long a render
+takes. `HYDRATE_HEADERS_TIMEOUT` must not exceed `HYDRATE_REQUEST_TIMEOUT`; a larger value is
+lowered to it with a warning at startup.
+
+## Deployment recommendations
+
+- **Memory limit and concurrency.** Measure the baseline and the memory per concurrent render
+  with `scripts/loadtest.mjs`, then pick `HYDRATE_CONCURRENCY` so that
+  `baseline + HYDRATE_CONCURRENCY x memory per render` stays clearly below the container's memory
+  limit. With a baseline of about 280 MB and 130 MB per render, a 500 MB container fits exactly one
+  render at a time.
+- **Tell V8 about the limit.** Without `--max-old-space-size`, V8 does not know about the container
+  limit and collects garbage too late. Set it somewhat below the limit, e.g.
+  `NODE_OPTIONS=--max-old-space-size=384` for a 500 MB container. If memory still runs out, the
+  process then fails fast and the container's restart policy brings it back, instead of hanging in
+  long garbage collection pauses.
+- **Healthcheck interval.** Rendering is mostly synchronous and blocks the event loop while it runs,
+  so `/healthz` cannot answer during that time. A healthcheck with a short timeout and few retries
+  (e.g. every 2 seconds with a 2 second timeout and 3 retries) can mark a busy but healthy
+  container as unhealthy. Allow for at least `HYDRATE_TIMEOUT` plus a long garbage collection pause,
+  e.g. every 5 seconds with a 3 second timeout and 3 retries.
+
+## Known limitation: renders that exceed the timeout
+
+When a render exceeds `HYDRATE_TIMEOUT`, Stencil closes its window while component promises may
+still be pending. `renderToString` returns, the render slot is released and the next render starts,
+but the abandoned promises keep their copy of the app in memory until they settle. If a backend
+hangs and every render runs into the timeout, memory can still grow — more slowly than before, but
+without a bound in this server.
+
+This is a Stencil limitation (see
+[stenciljs/core#6865](https://github.com/stenciljs/core/pull/6865)). These renders are counted as
+`hydrate_renders_total{result="timeout"}`, so alert on that alongside the garbage collection metric
+below:
+
+```
+rate(hydrate_renders_total{result="timeout"}[5m]) > 0
+```
 
 ## Endpoints
 
@@ -115,7 +178,8 @@ because that is exactly the configuration in which renders outlive their request
 
 `/healthz` and `/metrics` never enter the render queue, so they stay responsive while the server is
 saturated. `/healthz` deliberately does not reflect saturation — a liveness probe that fails under
-load would get the container restarted in the middle of a traffic spike.
+load would get the container restarted in the middle of a traffic spike. A running render does block
+the event loop, though, see [Deployment recommendations](#deployment-recommendations).
 
 ## Metrics
 
@@ -133,8 +197,8 @@ load would get the container restarted in the middle of a traffic spike.
 | `nodejs_heap_size_total_bytes`            | gauge     |
 | `nodejs_gc_duration_seconds`              | histogram |
 
-`result` is one of `ok`, `hydration_error`, `error`. `reason` is one of `queue_full`,
-`queue_timeout`, `body_too_large`, `client_disconnected`. The request URL is deliberately not a
+`result` is one of `ok`, `hydration_error`, `timeout`, `error`. `reason` is one of `queue_full`,
+`queue_timeout`, `body_too_large`, `bad_request`, `client_disconnected`. The request URL is deliberately not a
 label — it would create one time series per page.
 
 Example scrape configuration:
