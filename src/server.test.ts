@@ -266,7 +266,7 @@ describe('createServer', () => {
       }
     })
 
-    it('falls back to X-Tracing-ID and ignores malformed trace headers', async () => {
+    it('prefers X-Tracing-ID, falls back to traceparent and ignores malformed trace headers', async () => {
       const onError = vi.fn()
       const renderToString = vi.fn().mockRejectedValue(new Error('boom'))
       const {server, baseUrl} = await startServer(renderToString, {onError})
@@ -274,13 +274,23 @@ describe('createServer', () => {
 
       try {
         await post(baseUrl, payload, {'X-Tracing-ID': '0123456789abcdef0123456789abcdef'})
+        await post(baseUrl, payload, {
+          'X-Tracing-ID': '0123456789abcdef0123456789abcdef',
+          traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01'
+        })
+        await post(baseUrl, payload, {traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01'})
         await post(baseUrl, payload, {traceparent: 'garbage', 'X-Tracing-ID': 'not-hex'})
-        await post(baseUrl, payload, {traceparent: '00-00000000000000000000000000000000-00f067aa0ba902b7-01'})
-        await vi.waitFor(() => expect(onError).toHaveBeenCalledTimes(3))
+        await post(baseUrl, payload, {'X-Tracing-ID': '0'.repeat(32)})
+        await vi.waitFor(() => expect(onError).toHaveBeenCalledTimes(5))
 
-        expect(onError.mock.calls[0][1].traceId).toBe('0123456789abcdef0123456789abcdef')
-        expect(onError.mock.calls[1][1].traceId).toBeUndefined()
-        expect(onError.mock.calls[2][1].traceId).toBeUndefined()
+        const traceIds = onError.mock.calls.map(call => call[1].traceId)
+        expect(traceIds).toEqual([
+          '0123456789abcdef0123456789abcdef',
+          '0123456789abcdef0123456789abcdef',
+          '4bf92f3577b34da6a3ce929d0e0e4736',
+          undefined,
+          undefined
+        ])
       } finally {
         await stopServer(server)
       }

@@ -5,7 +5,7 @@ export interface ServerErrorContext {
     kind: 'exception' | 'hydration';
     /** URL of the page being rendered (from the request payload), not the URL of the hydrate server */
     url?: string;
-    /** Trace id of the incoming W3C `traceparent` header, or of the `X-Tracing-ID` header if there is no valid one */
+    /** Trace id of the incoming `X-Tracing-ID` header, or of the W3C `traceparent` header if there is no valid one */
     traceId?: string;
     buildId?: string;
     diagnostics?: HydrateResults['diagnostics'];

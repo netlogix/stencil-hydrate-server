@@ -52,7 +52,7 @@ export interface ServerErrorContext {
   kind: 'exception' | 'hydration'
   /** URL of the page being rendered (from the request payload), not the URL of the hydrate server */
   url?: string
-  /** Trace id of the incoming W3C `traceparent` header, or of the `X-Tracing-ID` header if there is no valid one */
+  /** Trace id of the incoming `X-Tracing-ID` header, or of the W3C `traceparent` header if there is no valid one */
   traceId?: string
   buildId?: string
   diagnostics?: HydrateResults['diagnostics']
@@ -71,16 +71,16 @@ export interface ServerOptions {
 
 const traceparentRegex = /^00-(?!0{32})([0-9a-f]{32})-(?!0{16})[0-9a-f]{16}-[0-9a-f]{2}$/
 const tracingIdRegex = /^[0-9a-fA-F]{32}$/
+const zeroTraceIdRegex = /^0{32}$/
 
 const getTraceId = (headers: http.IncomingHttpHeaders): string | undefined => {
-  const traceparent = headers['traceparent']
-  const fromTraceparent = typeof traceparent === 'string' ? traceparentRegex.exec(traceparent)?.[1] : undefined
-  if (fromTraceparent) {
-    return fromTraceparent
+  const tracingId = headers['x-tracing-id']
+  if (typeof tracingId === 'string' && tracingIdRegex.test(tracingId) && !zeroTraceIdRegex.test(tracingId)) {
+    return tracingId
   }
 
-  const tracingId = headers['x-tracing-id']
-  return typeof tracingId === 'string' && tracingIdRegex.test(tracingId) ? tracingId : undefined
+  const traceparent = headers['traceparent']
+  return typeof traceparent === 'string' ? traceparentRegex.exec(traceparent)?.[1] : undefined
 }
 
 const toError = (error: unknown): Error => (error instanceof Error ? error : new Error(String(error)))
