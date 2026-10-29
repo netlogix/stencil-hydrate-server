@@ -26,8 +26,8 @@ var http__namespace = /*#__PURE__*/_interopNamespaceDefault(http);
 const DEFAULT_SERVER_OPTIONS = {
   maxConcurrency: 1,
   maxQueue: 32,
-  queueWaitTimeout: 2e3,
-  hydrateTimeout: 5e3,
+  queueWaitTimeout: 1e3,
+  hydrateTimeout: 3500,
   requestTimeout: 1e4,
   headersTimeout: 5e3,
   maxBodySize: 2 * 1024 * 1024
@@ -87,11 +87,11 @@ const resolveServerOptions = (options = {}, env = process.env) => {
 };
 const validateServerOptions = (options) => {
   const warnings = [];
-  const budget = options.queueWaitTimeout + options.hydrateTimeout;
-  if (options.requestTimeout > 0 && budget >= options.requestTimeout) {
+  if (options.requestTimeout > 0 && options.headersTimeout > options.requestTimeout) {
     warnings.push(
-      `queueWaitTimeout (${options.queueWaitTimeout}ms) + hydrateTimeout (${options.hydrateTimeout}ms) >= requestTimeout (${options.requestTimeout}ms): renders can outlive their request. Lower ${ENV_VARIABLE_NAMES.queueWaitTimeout} or ${ENV_VARIABLE_NAMES.hydrateTimeout}, or raise ${ENV_VARIABLE_NAMES.requestTimeout}.`
+      `headersTimeout (${options.headersTimeout}ms) must not exceed requestTimeout (${options.requestTimeout}ms); using ${options.requestTimeout}ms. Lower ${ENV_VARIABLE_NAMES.headersTimeout} or raise ${ENV_VARIABLE_NAMES.requestTimeout}.`
     );
+    options.headersTimeout = options.requestTimeout;
   }
   return warnings;
 };
@@ -197,10 +197,16 @@ const createSemaphore = ({ maxConcurrency, maxQueue, queueWaitTimeout }) => {
 };
 
 const METRICS_CONTENT_TYPE = "text/plain; version=0.0.4; charset=utf-8";
-const RENDER_RESULTS = ["ok", "hydration_error", "error"];
-const REJECTION_REASONS = ["queue_full", "queue_timeout", "body_too_large", "client_disconnected"];
-const RENDER_DURATION_BUCKETS = [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10];
-const QUEUE_WAIT_BUCKETS = [1e-3, 5e-3, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5];
+const RENDER_RESULTS = ["ok", "hydration_error", "timeout", "error"];
+const REJECTION_REASONS = [
+  "queue_full",
+  "queue_timeout",
+  "body_too_large",
+  "bad_request",
+  "client_disconnected"
+];
+const RENDER_DURATION_BUCKETS = [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 2.5, 3, 3.5, 5, 10];
+const QUEUE_WAIT_BUCKETS = [1e-3, 5e-3, 0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 1, 2, 5];
 const GC_DURATION_BUCKETS = [5e-4, 1e-3, 5e-3, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1];
 const escapeLabelValue = (value) => value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
 const createCounter = (name, help, labelName, labelValues) => {
@@ -354,6 +360,18 @@ const readBody = async (request, maxBodySize) => {
   }
   return Buffer.concat(chunks);
 };
+const parsePayload = (rawBody) => {
+  let payload;
+  try {
+    payload = JSON.parse(rawBody.toString());
+  } catch {
+    return null;
+  }
+  if (typeof payload !== "object" || payload === null || typeof payload.body !== "string") {
+    return null;
+  }
+  return payload;
+};
 const createServer = (renderToString, serverOptions = {}) => {
   const { options, warnings } = resolveServerOptions(serverOptions);
   for (const warning of warnings) {
@@ -417,7 +435,23 @@ const createServer = (renderToString, serverOptions = {}) => {
         response.end();
         return;
       }
-      const { body, url, labels, settings } = JSON.parse(rawBody.toString());
+      const payload = parsePayload(rawBody);
+      if (payload === null) {
+        metrics.countRejected("bad_request");
+        console.log(
+          logfmt({
+            time: (/* @__PURE__ */ new Date()).toJSON(),
+            status: 400,
+            statusMessage: 'Request body must be JSON with a string "body"',
+            method: request.method,
+            url: request.url
+          })
+        );
+        response.writeHead(400);
+        response.end();
+        return;
+      }
+      const { body, url, labels, settings } = payload;
       const convertedBody = convertHtmlSpecialitiesToComments(body);
       let slot;
       try {
@@ -504,12 +538,12 @@ const createServer = (renderToString, serverOptions = {}) => {
         })
       );
       if (results.httpStatus !== 200) {
-        outcome = "hydration_error";
+        outcome = hasExceededTimeout(results) ? "timeout" : "hydration_error";
         console.log(
           logfmt({
             time: (/* @__PURE__ */ new Date()).toJSON(),
             status: 500,
-            statusMessage: "Hydration error",
+            statusMessage: outcome === "timeout" ? "Hydration timeout" : "Hydration error",
             method: request.method,
             url: request.url
           })
@@ -527,6 +561,20 @@ const createServer = (renderToString, serverOptions = {}) => {
       response.write(resultHtmlDocumentString);
       response.end();
     } catch (error) {
+      if (!renderAttempted && abortController.signal.aborted) {
+        metrics.countRejected("client_disconnected");
+        console.log(
+          logfmt({
+            time: (/* @__PURE__ */ new Date()).toJSON(),
+            status: 499,
+            statusMessage: "Client disconnected while sending the request",
+            method: request.method,
+            url: request.url
+          })
+        );
+        response.destroy();
+        return;
+      }
       if (renderAttempted) {
         outcome = "error";
       }
@@ -550,6 +598,7 @@ const createServer = (renderToString, serverOptions = {}) => {
   server.on("close", () => metrics.close());
   return server;
 };
+const hasExceededTimeout = (results) => results.diagnostics?.some((diagnostic) => diagnostic.messageText?.startsWith("Hydrate exceeded timeout")) ?? false;
 const esiIncludeRegex = /<esi:include\s+src="([^"]*)"\s*\/?>/g;
 const nbspRegex = /&nbsp;/g;
 const esiIncludeCommentRegex = /<!-- ESI include: "([^"]*)" -->/g;

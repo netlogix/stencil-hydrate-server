@@ -1,7 +1,7 @@
 export declare const METRICS_CONTENT_TYPE = "text/plain; version=0.0.4; charset=utf-8";
-export declare const RENDER_RESULTS: readonly ['ok', 'hydration_error', 'error'];
+export declare const RENDER_RESULTS: readonly ['ok', 'hydration_error', 'timeout', 'error'];
 export type RenderResult = (typeof RENDER_RESULTS)[number];
-export declare const REJECTION_REASONS: readonly ['queue_full', 'queue_timeout', 'body_too_large', 'client_disconnected'];
+export declare const REJECTION_REASONS: readonly ['queue_full', 'queue_timeout', 'body_too_large', 'bad_request', 'client_disconnected'];
 export type RejectionReason = (typeof REJECTION_REASONS)[number];
 export interface Metrics {
     countRender: (result: RenderResult) => void;
