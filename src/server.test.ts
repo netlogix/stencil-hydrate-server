@@ -31,7 +31,9 @@ type RenderToString = (html: string | any, options?: SerializeDocumentOptions) =
 
 const startServer = async (renderToString: RenderToString, options: ServerOptions = {}) => {
   const server = createServer(renderToString, options)
-  await new Promise<void>(resolve => server.listen(0, resolve))
+  // Bind to the address the tests connect to: with the default dual stack bind, another local process
+  // listening on 127.0.0.1 with the same port would receive the requests instead.
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
   if (address === null || typeof address === 'string') {
     throw new Error('expected server to listen on a port')
