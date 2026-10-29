@@ -2557,7 +2557,7 @@ function requireUtils () {
 		  REGEX_REMOVE_BACKSLASH,
 		  REGEX_SPECIAL_CHARS,
 		  REGEX_SPECIAL_CHARS_GLOBAL
-		} = /*@__PURE__*/ requireConstants();
+		} = requireConstants();
 
 		exports.isObject = val => val !== null && typeof val === 'object' && !Array.isArray(val);
 		exports.hasRegexChars = str => REGEX_SPECIAL_CHARS.test(str);
@@ -2632,7 +2632,7 @@ function requireScan () {
 	if (hasRequiredScan) return scan_1;
 	hasRequiredScan = 1;
 
-	const utils = /*@__PURE__*/ requireUtils();
+	const utils = requireUtils();
 	const {
 	  CHAR_ASTERISK,             /* * */
 	  CHAR_AT,                   /* @ */
@@ -2649,7 +2649,7 @@ function requireScan () {
 	  CHAR_RIGHT_CURLY_BRACE,    /* } */
 	  CHAR_RIGHT_PARENTHESES,    /* ) */
 	  CHAR_RIGHT_SQUARE_BRACKET  /* ] */
-	} = /*@__PURE__*/ requireConstants();
+	} = requireConstants();
 
 	const isPathSeparator = code => {
 	  return code === CHAR_FORWARD_SLASH || code === CHAR_BACKWARD_SLASH;
@@ -3043,8 +3043,8 @@ function requireParse () {
 	if (hasRequiredParse) return parse_1;
 	hasRequiredParse = 1;
 
-	const constants = /*@__PURE__*/ requireConstants();
-	const utils = /*@__PURE__*/ requireUtils();
+	const constants = requireConstants();
+	const utils = requireUtils();
 
 	/**
 	 * Constants
@@ -4476,10 +4476,10 @@ function requirePicomatch$1 () {
 	if (hasRequiredPicomatch$1) return picomatch_1$1;
 	hasRequiredPicomatch$1 = 1;
 
-	const scan = /*@__PURE__*/ requireScan();
-	const parse = /*@__PURE__*/ requireParse();
-	const utils = /*@__PURE__*/ requireUtils();
-	const constants = /*@__PURE__*/ requireConstants();
+	const scan = requireScan();
+	const parse = requireParse();
+	const utils = requireUtils();
+	const constants = requireConstants();
 	const isObject = val => val && typeof val === 'object' && !Array.isArray(val);
 
 	/**
@@ -4845,8 +4845,8 @@ function requirePicomatch () {
 	if (hasRequiredPicomatch) return picomatch_1;
 	hasRequiredPicomatch = 1;
 
-	const pico = /*@__PURE__*/ requirePicomatch$1();
-	const utils = /*@__PURE__*/ requireUtils();
+	const pico = requirePicomatch$1();
+	const utils = requireUtils();
 
 	function picomatch(glob, options, returnState = false) {
 	  // default to os.platform()
@@ -10881,23 +10881,28 @@ function commonjs(options = {}) {
 }
 
 const hydrateServerOutputTarget = (outputTarget) => ({
-    type: 'custom',
-    name: 'nlx-hydrate-server',
-    validate(config) {
-        return;
-    },
-    async generator(config, compilerCtx, buildCtx) {
-        if ((buildCtx.hydrateAppFilePath || '').length === 0) {
-            return;
-        }
-        try {
-            const buildDirPath = path$2.join(buildCtx.config.cacheDir || path$2.join(buildCtx.config.rootDir, '.stencil'), 'nlx-hydrate-server');
-            await promises.mkdir(buildDirPath, { recursive: true });
-            const outputDirPath = outputTarget.dir;
-            await promises.mkdir(outputDirPath, { recursive: true });
-            await promises.copyFile(path$2.join(__dirname, 'server.js'), path$2.join(buildDirPath, 'server.js'));
-            await promises.copyFile(buildCtx.hydrateAppFilePath, path$2.join(buildDirPath, 'hydrate-app.js'));
-            await promises.writeFile(path$2.join(buildDirPath, 'index.js'), `
+  type: "custom",
+  name: "nlx-hydrate-server",
+  validate(config) {
+    return;
+  },
+  async generator(config, compilerCtx, buildCtx) {
+    if ((buildCtx.hydrateAppFilePath || "").length === 0) {
+      return;
+    }
+    try {
+      const buildDirPath = path$2.join(
+        buildCtx.config.cacheDir || path$2.join(buildCtx.config.rootDir, ".stencil"),
+        "nlx-hydrate-server"
+      );
+      await promises.mkdir(buildDirPath, { recursive: true });
+      const outputDirPath = outputTarget.dir;
+      await promises.mkdir(outputDirPath, { recursive: true });
+      await promises.copyFile(path$2.join(__dirname, "server.js"), path$2.join(buildDirPath, "server.js"));
+      await promises.copyFile(buildCtx.hydrateAppFilePath, path$2.join(buildDirPath, "hydrate-app.js"));
+      await promises.writeFile(
+        path$2.join(buildDirPath, "index.js"),
+        `
 const {createServer} = require('./server.js');
 const {renderToString} = require('./hydrate-app.js');
 
@@ -10906,24 +10911,24 @@ const PORT = process.env.PORT || 80;
 createServer(renderToString).listen(PORT, (error) => {
     if (error) throw error;
     console.log('Hydrate server listening on', PORT);
-});`);
-            const rollupOptions = {
-                input: path$2.join(buildDirPath, 'index.js'),
-                treeshake: false,
-                plugins: [commonjs(), nodeResolve()]
-            };
-            const rollupBuild = await rollup.rollup(rollupOptions);
-            const outputFilePath = path$2.join(outputDirPath, 'index.js');
-            const rollupOutput = await rollupBuild.generate({
-                file: outputFilePath,
-                format: 'cjs'
-            });
-            await compilerCtx.fs.writeFile(outputFilePath, rollupOutput.output[0].code, { immediateWrite: true });
-        }
-        catch (e) {
-            console.log(e);
-        }
+});`
+      );
+      const rollupOptions = {
+        input: path$2.join(buildDirPath, "index.js"),
+        treeshake: false,
+        plugins: [commonjs(), nodeResolve()]
+      };
+      const rollupBuild = await rollup.rollup(rollupOptions);
+      const outputFilePath = path$2.join(outputDirPath, "index.js");
+      const rollupOutput = await rollupBuild.generate({
+        file: outputFilePath,
+        format: "cjs"
+      });
+      await compilerCtx.fs.writeFile(outputFilePath, rollupOutput.output[0].code, { immediateWrite: true });
+    } catch (e) {
+      console.log(e);
     }
+  }
 });
 
 exports.hydrateServerOutputTarget = hydrateServerOutputTarget;
