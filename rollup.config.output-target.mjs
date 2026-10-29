@@ -1,4 +1,4 @@
-import typescript from '@rollup/plugin-typescript'
+import esbuild from 'rollup-plugin-esbuild'
 import commonjs from '@rollup/plugin-commonjs'
 import resolve from '@rollup/plugin-node-resolve'
 import json from '@rollup/plugin-json'
@@ -10,5 +10,5 @@ export default {
     format: 'cjs'
   },
   external: ['rollup', '@stencil/core', '@stencil/core/internal'],
-  plugins: [json(), commonjs(), resolve(), typescript({tsconfig: './tsconfig.json'})]
+  plugins: [json(), commonjs(), resolve(), esbuild({tsconfig: './tsconfig.json'})]
 }
