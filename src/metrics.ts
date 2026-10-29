@@ -5,7 +5,13 @@ export const METRICS_CONTENT_TYPE = 'text/plain; version=0.0.4; charset=utf-8'
 export const RENDER_RESULTS = ['ok', 'hydration_error', 'timeout', 'error'] as const
 export type RenderResult = (typeof RENDER_RESULTS)[number]
 
-export const REJECTION_REASONS = ['queue_full', 'queue_timeout', 'body_too_large', 'client_disconnected'] as const
+export const REJECTION_REASONS = [
+  'queue_full',
+  'queue_timeout',
+  'body_too_large',
+  'bad_request',
+  'client_disconnected'
+] as const
 export type RejectionReason = (typeof REJECTION_REASONS)[number]
 
 const RENDER_DURATION_BUCKETS = [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 2.5, 3, 3.5, 5, 10]

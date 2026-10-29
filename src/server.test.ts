@@ -88,7 +88,7 @@ describe('createServer', () => {
     }
   })
 
-  it('responds with 500 and no body when the request body is not valid JSON', async () => {
+  it('responds with 400 and no body when the request body is not valid JSON', async () => {
     const renderToString = vi.fn()
     const {server, baseUrl} = await startServer(renderToString)
 
@@ -96,10 +96,33 @@ describe('createServer', () => {
       const response = await fetch(baseUrl, {method: 'POST', body: 'not-json'})
       const body = await response.text()
 
-      expect(response.status).toBe(500)
+      expect(response.status).toBe(400)
       expect(body).toBe('')
       expect(renderToString).not.toHaveBeenCalled()
-      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('status=500'))
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('status=400'))
+    } finally {
+      await stopServer(server)
+    }
+  })
+
+  it.each([
+    ['a missing body', {url: '/page'}],
+    ['a non-string body', {body: 42, url: '/page'}],
+    ['a JSON array', ['<p>hi</p>']],
+    ['JSON null', null]
+  ])('responds with 400 for %s', async (_case, payload) => {
+    const renderToString = vi.fn()
+    const {server, baseUrl} = await startServer(renderToString)
+
+    try {
+      const response = await fetch(baseUrl, {method: 'POST', body: JSON.stringify(payload)})
+
+      expect(response.status).toBe(400)
+      expect(renderToString).not.toHaveBeenCalled()
+
+      const metricsBody = await (await fetch(`${baseUrl}/metrics`)).text()
+
+      expect(metricsBody).toContain('hydrate_requests_rejected_total{reason="bad_request"} 1')
     } finally {
       await stopServer(server)
     }

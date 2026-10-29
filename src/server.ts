@@ -81,6 +81,33 @@ const readBody = async (request: http.IncomingMessage, maxBodySize: number): Pro
   return Buffer.concat(chunks)
 }
 
+interface RenderRequest {
+  body: string
+  url?: string
+  labels?: unknown
+  settings?: unknown
+}
+
+/**
+ * Parses the request payload. Returns `null` for anything that is not a JSON object with a string
+ * `body`, so that malformed requests are answered with 400 instead of surfacing as a server error.
+ */
+const parsePayload = (rawBody: Buffer): RenderRequest | null => {
+  let payload: unknown
+
+  try {
+    payload = JSON.parse(rawBody.toString())
+  } catch {
+    return null
+  }
+
+  if (typeof payload !== 'object' || payload === null || typeof (payload as RenderRequest).body !== 'string') {
+    return null
+  }
+
+  return payload as RenderRequest
+}
+
 export const createServer = (
   renderToString: (html: string | any, options?: SerializeDocumentOptions) => Promise<HydrateResults>,
   serverOptions: ServerOptions = {}
@@ -158,7 +185,25 @@ export const createServer = (
         return
       }
 
-      const {body, url, labels, settings} = JSON.parse(rawBody.toString())
+      const payload = parsePayload(rawBody)
+
+      if (payload === null) {
+        metrics.countRejected('bad_request')
+        console.log(
+          logfmt({
+            time: new Date().toJSON(),
+            status: 400,
+            statusMessage: 'Request body must be JSON with a string "body"',
+            method: request.method,
+            url: request.url
+          })
+        )
+        response.writeHead(400)
+        response.end()
+        return
+      }
+
+      const {body, url, labels, settings} = payload
 
       const convertedBody = convertHtmlSpecialitiesToComments(body)
 
