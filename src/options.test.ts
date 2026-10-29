@@ -107,3 +107,9 @@ describe('validateServerOptions', () => {
     expect(options.headersTimeout).toBe(8000)
   })
 })
+
+describe('DEFAULT_SERVER_OPTIONS', () => {
+  it('fits queue wait plus render budget into a 5 second caller timeout with headroom', () => {
+    expect(DEFAULT_SERVER_OPTIONS.queueWaitTimeout + DEFAULT_SERVER_OPTIONS.hydrateTimeout).toBeLessThan(5000)
+  })
+})

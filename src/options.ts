@@ -30,8 +30,8 @@ export type ResolvedServerOptions = Required<ServerOptions>
 export const DEFAULT_SERVER_OPTIONS: ResolvedServerOptions = {
   maxConcurrency: 1,
   maxQueue: 32,
-  queueWaitTimeout: 2000,
-  hydrateTimeout: 5000,
+  queueWaitTimeout: 1000,
+  hydrateTimeout: 3500,
   requestTimeout: 10000,
   headersTimeout: 5000,
   maxBodySize: 2 * 1024 * 1024
