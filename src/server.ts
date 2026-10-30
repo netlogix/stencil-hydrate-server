@@ -64,9 +64,10 @@ export interface ServerErrorContext {
 export interface ServerOptions {
   /**
    * Called after the error response was sent. Must not rely on the response, and a throwing hook never
-   * affects it: errors thrown by the hook are logged and swallowed.
+   * affects it: errors thrown or rejected by the hook are logged and swallowed. The hook may be async,
+   * the server does not wait for it.
    */
-  onError?: (error: Error, context: ServerErrorContext) => void
+  onError?: (error: Error, context: ServerErrorContext) => void | Promise<void>
 }
 
 const traceparentRegex = /^00-(?!0{32})([0-9a-f]{32})-(?!0{16})[0-9a-f]{16}-[0-9a-f]{2}$/
@@ -89,22 +90,26 @@ export const createServer = (
   renderToString: (html: string | any, options?: SerializeDocumentOptions) => Promise<HydrateResults>,
   options: ServerOptions = {}
 ) => {
+  const logHookError = (hookError: unknown) =>
+    console.log(
+      logfmt({
+        time: new Date().toJSON(),
+        level: 'error',
+        message: 'onError hook failed',
+        error: toError(hookError).message
+      })
+    )
+
   const reportError = (error: Error, context: ServerErrorContext) => {
     if (!options.onError) {
       return
     }
 
     try {
-      options.onError(error, context)
+      // Promise.resolve also catches a hook that rejects instead of throwing
+      Promise.resolve(options.onError(error, context)).catch(logHookError)
     } catch (hookError) {
-      console.log(
-        logfmt({
-          time: new Date().toJSON(),
-          level: 'error',
-          message: 'onError hook failed',
-          error: toError(hookError).message
-        })
-      )
+      logHookError(hookError)
     }
   }
 
@@ -142,7 +147,8 @@ export const createServer = (
       const {body, url, labels, settings} = JSON.parse(Buffer.concat(chunks).toString())
 
       context.url = typeof url === 'string' ? url : undefined
-      if (typeof body === 'string') {
+      // only needed for the hook, so servers without one do not pay for the hashing
+      if (options.onError && typeof body === 'string') {
         context.bodyLength = body.length
         context.bodyHash = createHash('sha256').update(body).digest('hex')
       }

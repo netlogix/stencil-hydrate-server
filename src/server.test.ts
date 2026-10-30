@@ -1,7 +1,15 @@
 import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest'
 import type {Server} from 'http'
 import type {HydrateResults, SerializeDocumentOptions} from '@stencil/core/internal'
+import {createHash} from 'crypto'
 import {createServer, type ServerOptions} from './server'
+
+vi.mock('crypto', async importOriginal => {
+  const actual = await importOriginal<typeof import('crypto')>()
+  return {...actual, createHash: vi.fn(actual.createHash)}
+})
+
+const createHashSpy = vi.mocked(createHash)
 
 const buildHydrateResults = (overrides: Partial<HydrateResults> = {}): HydrateResults => ({
   buildId: 'build-1',
@@ -46,6 +54,7 @@ describe('createServer', () => {
 
   beforeEach(() => {
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined)
+    createHashSpy.mockClear()
   })
 
   afterEach(() => {
@@ -374,6 +383,43 @@ describe('createServer', () => {
           expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('message="onError hook failed"'))
         )
         expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('error="sentry down"'))
+      } finally {
+        await stopServer(server)
+      }
+    })
+
+    it('keeps the 500 response and logs when an async hook rejects', async () => {
+      const unhandledRejection = vi.fn()
+      process.on('unhandledRejection', unhandledRejection)
+      const onError = vi.fn(async () => {
+        throw new Error('sentry down async')
+      })
+      const renderToString = vi.fn().mockRejectedValue(new Error('component exploded'))
+      const {server, baseUrl} = await startServer(renderToString, {onError})
+
+      try {
+        const response = await post(baseUrl, JSON.stringify({body: '<p/>', url: '/', labels: {}, settings: {}}))
+
+        expect(response.status).toBe(500)
+        await vi.waitFor(() =>
+          expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('error="sentry down async"'))
+        )
+        expect(unhandledRejection).not.toHaveBeenCalled()
+      } finally {
+        process.off('unhandledRejection', unhandledRejection)
+        await stopServer(server)
+      }
+    })
+
+    it('does not hash the body when no hook is configured', async () => {
+      const renderToString = vi.fn().mockRejectedValue(new Error('component exploded'))
+      const {server, baseUrl} = await startServer(renderToString)
+
+      try {
+        const response = await post(baseUrl, JSON.stringify({body: '<p/>', url: '/', labels: {}, settings: {}}))
+
+        expect(response.status).toBe(500)
+        expect(createHashSpy).not.toHaveBeenCalled()
       } finally {
         await stopServer(server)
       }

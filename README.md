@@ -51,7 +51,7 @@ exports.onError = (error, context) => {
 }
 ```
 
-The hook runs after the error response was sent. If it throws, the error is logged and the response stays untouched.
+The hook runs after the error response was sent and may be async, the server does not wait for it. If it throws or rejects, the error is logged and the response stays untouched. The hash and length of the body are only computed when a hook is configured.
 
 ## License
 This package is licensed under the MIT license.
