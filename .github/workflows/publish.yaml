@@ -1,4 +1,4 @@
-name: Publish package to GitHub Packages
+name: Publish package to npm
 
 on:
   release:
@@ -8,14 +8,16 @@ jobs:
   publish:
     runs-on: ubuntu-latest
 
+    # Trusted publishing: npm exchanges the GitHub OIDC token for a short-lived
+    # publish token, so no NPM_TOKEN secret is needed. Requires npm >= 11.5.1.
     permissions:
       contents: read
-      packages: write
+      id-token: write
 
     steps:
       - uses: actions/checkout@v7
 
-      - name: Setup Node.js and set registry to GitHub Packages
+      - name: Setup Node.js and set registry to npm
         uses: actions/setup-node@v7
         with:
           node-version-file: '.nvmrc'
@@ -26,7 +28,5 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Publish package to GitHub Packages
+      - name: Publish package to npm
         run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
