@@ -31,8 +31,9 @@ export const hydrateServerOutputTarget = (outputTarget: any): OutputTargetCustom
 
       await copyFile(buildCtx.hydrateAppFilePath, join(buildDirPath, 'hydrate-app.js'))
 
-      // Required by absolute path instead of being copied, so the hooks module resolves its own
-      // dependencies (e.g. an error reporting SDK) from where it lives in the consuming project.
+      // Required by absolute path and not copied, so the hooks module resolves its own dependencies
+      // (e.g. an error reporting SDK) from where it lives in the consuming project. The rollup run below
+      // inlines it, so the generated index.js does not need the hooks source at runtime.
       const hooksRequire = outputTarget.hooksModule
         ? `const hooks = require(${JSON.stringify(resolvePath(buildCtx.config.rootDir!, outputTarget.hooksModule))});\n`
         : ''
