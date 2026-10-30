@@ -16,8 +16,9 @@ export interface ServerErrorContext {
 export interface ServerOptions {
     /**
      * Called after the error response was sent. Must not rely on the response, and a throwing hook never
-     * affects it: errors thrown by the hook are logged and swallowed.
+     * affects it: errors thrown or rejected by the hook are logged and swallowed. The hook may be async,
+     * the server does not wait for it.
      */
-    onError?: (error: Error, context: ServerErrorContext) => void;
+    onError?: (error: Error, context: ServerErrorContext) => void | Promise<void>;
 }
 export declare const createServer: (renderToString: (html: string | any, options?: SerializeDocumentOptions) => Promise<HydrateResults>, options?: ServerOptions) => http.Server<typeof http.IncomingMessage, typeof http.ServerResponse>;

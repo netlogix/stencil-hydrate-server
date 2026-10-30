@@ -63,21 +63,22 @@ const getTraceId = (headers) => {
 };
 const toError = (error) => error instanceof Error ? error : new Error(String(error));
 const createServer = (renderToString, options = {}) => {
+  const logHookError = (hookError) => console.log(
+    logfmt({
+      time: (/* @__PURE__ */ new Date()).toJSON(),
+      level: "error",
+      message: "onError hook failed",
+      error: toError(hookError).message
+    })
+  );
   const reportError = (error, context) => {
     if (!options.onError) {
       return;
     }
     try {
-      options.onError(error, context);
+      Promise.resolve(options.onError(error, context)).catch(logHookError);
     } catch (hookError) {
-      console.log(
-        logfmt({
-          time: (/* @__PURE__ */ new Date()).toJSON(),
-          level: "error",
-          message: "onError hook failed",
-          error: toError(hookError).message
-        })
-      );
+      logHookError(hookError);
     }
   };
   return http__namespace.createServer(async (request, response) => {
@@ -110,7 +111,7 @@ const createServer = (renderToString, options = {}) => {
       }
       const { body, url, labels, settings } = JSON.parse(Buffer.concat(chunks).toString());
       context.url = typeof url === "string" ? url : void 0;
-      if (typeof body === "string") {
+      if (options.onError && typeof body === "string") {
         context.bodyLength = body.length;
         context.bodyHash = crypto.createHash("sha256").update(body).digest("hex");
       }
