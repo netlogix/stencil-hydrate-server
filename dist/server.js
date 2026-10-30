@@ -1,6 +1,7 @@
 'use strict';
 
 var http = require('http');
+var crypto = require('crypto');
 var mockDoc = require('@stencil/core/mock-doc');
 
 function _interopNamespaceDefault(e) {
@@ -49,7 +50,36 @@ const logfmt = function(data, prefix = "") {
   }
   return line.join(" ");
 };
-const createServer = (renderToString) => {
+const traceparentRegex = /^00-(?!0{32})([0-9a-f]{32})-(?!0{16})[0-9a-f]{16}-[0-9a-f]{2}$/;
+const tracingIdRegex = /^[0-9a-fA-F]{32}$/;
+const zeroTraceIdRegex = /^0{32}$/;
+const getTraceId = (headers) => {
+  const tracingId = headers["x-tracing-id"];
+  if (typeof tracingId === "string" && tracingIdRegex.test(tracingId) && !zeroTraceIdRegex.test(tracingId)) {
+    return tracingId;
+  }
+  const traceparent = headers["traceparent"];
+  return typeof traceparent === "string" ? traceparentRegex.exec(traceparent)?.[1] : void 0;
+};
+const toError = (error) => error instanceof Error ? error : new Error(String(error));
+const createServer = (renderToString, options = {}) => {
+  const reportError = (error, context) => {
+    if (!options.onError) {
+      return;
+    }
+    try {
+      options.onError(error, context);
+    } catch (hookError) {
+      console.log(
+        logfmt({
+          time: (/* @__PURE__ */ new Date()).toJSON(),
+          level: "error",
+          message: "onError hook failed",
+          error: toError(hookError).message
+        })
+      );
+    }
+  };
   return http__namespace.createServer(async (request, response) => {
     if (request.method === "GET" && request.url === "/healthz") {
       response.statusCode = 200;
@@ -70,12 +100,20 @@ const createServer = (renderToString) => {
       response.end();
       return;
     }
+    const context = {
+      traceId: getTraceId(request.headers)
+    };
     try {
       const chunks = [];
       for await (const chunk of request) {
         chunks.push(chunk);
       }
       const { body, url, labels, settings } = JSON.parse(Buffer.concat(chunks).toString());
+      context.url = typeof url === "string" ? url : void 0;
+      if (typeof body === "string") {
+        context.bodyLength = body.length;
+        context.bodyHash = crypto.createHash("sha256").update(body).digest("hex");
+      }
       const convertedBody = convertHtmlSpecialitiesToComments(body);
       const results = await renderToString(convertedBody, {
         prettyHtml: false,
@@ -112,6 +150,13 @@ const createServer = (renderToString) => {
         response.statusCode = 500;
         response.statusMessage = "Hydration error";
         response.end();
+        const firstError = results.diagnostics?.find((diagnostic) => diagnostic.level === "error");
+        reportError(new Error(`Hydration error: ${firstError?.messageText ?? `httpStatus ${results.httpStatus}`}`), {
+          ...context,
+          kind: "hydration",
+          buildId: results.buildId,
+          diagnostics: results.diagnostics
+        });
         return;
       }
       const resultHtmlDocumentString = convertCommentsToHtmlSpecialities(
@@ -130,6 +175,7 @@ const createServer = (renderToString) => {
       );
       response.statusCode = 500;
       response.end();
+      reportError(toError(error), { ...context, kind: "exception" });
     }
   });
 };

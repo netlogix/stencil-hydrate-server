@@ -10905,15 +10905,18 @@ const hydrateServerOutputTarget = (outputTarget) => ({
       await promises.mkdir(outputDirPath, { recursive: true });
       await promises.copyFile(path$2.join(__dirname, "server.js"), path$2.join(buildDirPath, "server.js"));
       await promises.copyFile(buildCtx.hydrateAppFilePath, path$2.join(buildDirPath, "hydrate-app.js"));
+      const hooksRequire = outputTarget.hooksModule ? `const hooks = require(${JSON.stringify(path$2.resolve(buildCtx.config.rootDir, outputTarget.hooksModule))});
+` : "";
+      const serverOptions = outputTarget.hooksModule ? "{onError: hooks.onError}" : "{}";
       await promises.writeFile(
         path$2.join(buildDirPath, "index.js"),
         `
 const {createServer} = require('./server.js');
 const {renderToString} = require('./hydrate-app.js');
-
+${hooksRequire}
 const PORT = process.env.PORT || 80;
 
-createServer(renderToString).listen(PORT, (error) => {
+createServer(renderToString, ${serverOptions}).listen(PORT, (error) => {
     if (error) throw error;
     console.log('Hydrate server listening on', PORT);
 });`
