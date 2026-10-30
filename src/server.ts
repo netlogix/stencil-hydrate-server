@@ -1,4 +1,5 @@
 import * as http from 'http'
+import {createHash} from 'crypto'
 import {parseHtmlToDocument} from '@stencil/core/mock-doc'
 import type {HydrateResults, SerializeDocumentOptions} from '@stencil/core/internal'
 
@@ -46,9 +47,72 @@ const logfmt = function (data: any, prefix: string = ''): string {
   return line.join(' ')
 }
 
+export interface ServerErrorContext {
+  /** `exception`: the request handler threw, `hydration`: renderToString reported a non-200 httpStatus */
+  kind: 'exception' | 'hydration'
+  /** URL of the page being rendered (from the request payload), not the URL of the hydrate server */
+  url?: string
+  /** Trace id of the incoming `X-Tracing-ID` header, or of the W3C `traceparent` header if there is no valid one */
+  traceId?: string
+  buildId?: string
+  diagnostics?: HydrateResults['diagnostics']
+  /** Size and SHA-256 of the HTML to hydrate, so identical inputs can be recognised without exposing the HTML */
+  bodyLength?: number
+  bodyHash?: string
+}
+
+export interface ServerOptions {
+  /**
+   * Called after the error response was sent. Must not rely on the response, and a throwing hook never
+   * affects it: errors thrown or rejected by the hook are logged and swallowed. The hook may be async,
+   * the server does not wait for it.
+   */
+  onError?: (error: Error, context: ServerErrorContext) => void | Promise<void>
+}
+
+const traceparentRegex = /^00-(?!0{32})([0-9a-f]{32})-(?!0{16})[0-9a-f]{16}-[0-9a-f]{2}$/
+const tracingIdRegex = /^[0-9a-fA-F]{32}$/
+const zeroTraceIdRegex = /^0{32}$/
+
+const getTraceId = (headers: http.IncomingHttpHeaders): string | undefined => {
+  const tracingId = headers['x-tracing-id']
+  if (typeof tracingId === 'string' && tracingIdRegex.test(tracingId) && !zeroTraceIdRegex.test(tracingId)) {
+    return tracingId
+  }
+
+  const traceparent = headers['traceparent']
+  return typeof traceparent === 'string' ? traceparentRegex.exec(traceparent)?.[1] : undefined
+}
+
+const toError = (error: unknown): Error => (error instanceof Error ? error : new Error(String(error)))
+
 export const createServer = (
-  renderToString: (html: string | any, options?: SerializeDocumentOptions) => Promise<HydrateResults>
+  renderToString: (html: string | any, options?: SerializeDocumentOptions) => Promise<HydrateResults>,
+  options: ServerOptions = {}
 ) => {
+  const logHookError = (hookError: unknown) =>
+    console.log(
+      logfmt({
+        time: new Date().toJSON(),
+        level: 'error',
+        message: 'onError hook failed',
+        error: toError(hookError).message
+      })
+    )
+
+  const reportError = (error: Error, context: ServerErrorContext) => {
+    if (!options.onError) {
+      return
+    }
+
+    try {
+      // Promise.resolve also catches a hook that rejects instead of throwing
+      Promise.resolve(options.onError(error, context)).catch(logHookError)
+    } catch (hookError) {
+      logHookError(hookError)
+    }
+  }
+
   return http.createServer(async (request, response) => {
     if (request.method === 'GET' && request.url === '/healthz') {
       response.statusCode = 200
@@ -71,12 +135,23 @@ export const createServer = (
       return
     }
 
+    const context: Omit<ServerErrorContext, 'kind'> = {
+      traceId: getTraceId(request.headers)
+    }
+
     try {
       const chunks = []
       for await (const chunk of request) {
         chunks.push(chunk)
       }
       const {body, url, labels, settings} = JSON.parse(Buffer.concat(chunks).toString())
+
+      context.url = typeof url === 'string' ? url : undefined
+      // only needed for the hook, so servers without one do not pay for the hashing
+      if (options.onError && typeof body === 'string') {
+        context.bodyLength = body.length
+        context.bodyHash = createHash('sha256').update(body).digest('hex')
+      }
 
       const convertedBody = convertHtmlSpecialitiesToComments(body)
 
@@ -117,6 +192,14 @@ export const createServer = (
         response.statusCode = 500
         response.statusMessage = 'Hydration error'
         response.end()
+
+        const firstError = results.diagnostics?.find(diagnostic => diagnostic.level === 'error')
+        reportError(new Error(`Hydration error: ${firstError?.messageText ?? `httpStatus ${results.httpStatus}`}`), {
+          ...context,
+          kind: 'hydration',
+          buildId: results.buildId,
+          diagnostics: results.diagnostics
+        })
         return
       }
 
@@ -139,6 +222,8 @@ export const createServer = (
       )
       response.statusCode = 500
       response.end()
+
+      reportError(toError(error), {...context, kind: 'exception'})
     }
   })
 }

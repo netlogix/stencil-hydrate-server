@@ -5094,6 +5094,134 @@ const makeLegalIdentifier = function makeLegalIdentifier(str) {
     return identifier || '_';
 };
 
+function stringify(obj) {
+    return (JSON.stringify(obj) || 'undefined').replace(/[\u2028\u2029]/g, (char) => `\\u${`000${char.charCodeAt(0).toString(16)}`.slice(-4)}`);
+}
+function serializeArray(arr, indent, baseIndent) {
+    let output = '[';
+    const separator = indent ? `\n${baseIndent}${indent}` : '';
+    for (let i = 0; i < arr.length; i++) {
+        const key = arr[i];
+        output += `${i > 0 ? ',' : ''}${separator}${serialize(key, indent, baseIndent + indent)}`;
+    }
+    return `${output}${indent ? `\n${baseIndent}` : ''}]`;
+}
+function serializeObject(obj, indent, baseIndent) {
+    let output = '{';
+    const separator = indent ? `\n${baseIndent}${indent}` : '';
+    const entries = Object.entries(obj);
+    for (let i = 0; i < entries.length; i++) {
+        const [key, value] = entries[i];
+        const stringKey = makeLegalIdentifier(key) === key ? key : stringify(key);
+        output += `${i > 0 ? ',' : ''}${separator}${stringKey}:${indent ? ' ' : ''}${serialize(value, indent, baseIndent + indent)}`;
+    }
+    return `${output}${indent ? `\n${baseIndent}` : ''}}`;
+}
+function serialize(obj, indent, baseIndent) {
+    if (typeof obj === 'object' && obj !== null) {
+        if (Array.isArray(obj))
+            return serializeArray(obj, indent, baseIndent);
+        if (obj instanceof Date)
+            return `new Date(${obj.getTime()})`;
+        if (obj instanceof RegExp)
+            return obj.toString();
+        return serializeObject(obj, indent, baseIndent);
+    }
+    if (typeof obj === 'number') {
+        if (obj === Infinity)
+            return 'Infinity';
+        if (obj === -Infinity)
+            return '-Infinity';
+        if (obj === 0)
+            return 1 / obj === Infinity ? '0' : '-0';
+        if (obj !== obj)
+            return 'NaN'; // eslint-disable-line no-self-compare
+    }
+    if (typeof obj === 'symbol') {
+        const key = Symbol.keyFor(obj);
+        // eslint-disable-next-line no-undefined
+        if (key !== undefined)
+            return `Symbol.for(${stringify(key)})`;
+    }
+    if (typeof obj === 'bigint')
+        return `${obj}n`;
+    return stringify(obj);
+}
+// isWellFormed exists from Node.js 20
+const hasStringIsWellFormed = 'isWellFormed' in String.prototype;
+function isWellFormedString(input) {
+    // @ts-expect-error String::isWellFormed exists from ES2024. tsconfig lib is set to ES6
+    if (hasStringIsWellFormed)
+        return input.isWellFormed();
+    // https://github.com/tc39/proposal-is-usv-string/blob/main/README.md#algorithm
+    return !/\p{Surrogate}/u.test(input);
+}
+// Matches the ECMAScript `IdentifierName` grammar, which (unlike a binding
+// identifier) also accepts reserved words such as `switch`/`await`. Such names
+// can be re-exported with the `export { _x as switch }` form, valid since ES2015.
+const identifierNameRE = /^[$_\p{ID_Start}][$\u200c\u200d\p{ID_Continue}]*$/u;
+const dataToEsm = function dataToEsm(data, options = {}) {
+    var _a, _b;
+    const t = options.compact ? '' : 'indent' in options ? options.indent : '\t';
+    const _ = options.compact ? '' : ' ';
+    const n = options.compact ? '' : '\n';
+    const declarationType = options.preferConst ? 'const' : 'var';
+    if (options.namedExports === false ||
+        typeof data !== 'object' ||
+        Array.isArray(data) ||
+        data instanceof Date ||
+        data instanceof RegExp ||
+        data === null) {
+        const code = serialize(data, options.compact ? null : t, '');
+        const magic = _ || (/^[{[\-\/]/.test(code) ? '' : ' '); // eslint-disable-line no-useless-escape
+        return `export default${magic}${code};`;
+    }
+    let maxUnderbarPrefixLength = 0;
+    for (const key of Object.keys(data)) {
+        const underbarPrefixLength = (_b = (_a = /^(_+)/.exec(key)) === null || _a === void 0 ? void 0 : _a[0].length) !== null && _b !== void 0 ? _b : 0;
+        if (underbarPrefixLength > maxUnderbarPrefixLength) {
+            maxUnderbarPrefixLength = underbarPrefixLength;
+        }
+    }
+    const arbitraryNamePrefix = `${'_'.repeat(maxUnderbarPrefixLength + 1)}arbitrary`;
+    let namedExportCode = '';
+    const defaultExportRows = [];
+    const arbitraryNameExportRows = [];
+    for (const [key, value] of Object.entries(data)) {
+        if (key === makeLegalIdentifier(key)) {
+            if (options.objectShorthand)
+                defaultExportRows.push(key);
+            else
+                defaultExportRows.push(`${key}:${_}${key}`);
+            namedExportCode += `export ${declarationType} ${key}${_}=${_}${serialize(value, options.compact ? null : t, '')};${n}`;
+        }
+        else {
+            defaultExportRows.push(`${stringify(key)}:${_}${serialize(value, options.compact ? null : t, '')}`);
+            // A `default` key is exposed only through the default export object: a
+            // `... as default` re-export would clash with the trailing `export default`
+            // and produce a duplicate default export (a SyntaxError).
+            if (key !== 'default') {
+                // A valid `IdentifierName` that is not a legal binding identifier (a
+                // reserved word or global, e.g. `switch`, `await`) is re-exported with the
+                // unquoted `export { _x as switch }` form, valid since ES2015. Any other
+                // key needs the quoted arbitrary-namespace form (ES2022+), which remains
+                // opt-in via `includeArbitraryNames`.
+                const isIdentifierName = identifierNameRE.test(key);
+                if (isIdentifierName || (options.includeArbitraryNames && isWellFormedString(key))) {
+                    const variableName = `${arbitraryNamePrefix}${arbitraryNameExportRows.length}`;
+                    namedExportCode += `${declarationType} ${variableName}${_}=${_}${serialize(value, options.compact ? null : t, '')};${n}`;
+                    arbitraryNameExportRows.push(`${variableName} as ${isIdentifierName ? key : JSON.stringify(key)}`);
+                }
+            }
+        }
+    }
+    const arbitraryExportCode = arbitraryNameExportRows.length > 0
+        ? `export${_}{${n}${t}${arbitraryNameExportRows.join(`,${n}${t}`)}${n}};${n}`
+        : '';
+    const defaultExportCode = `export default${_}{${n}${t}${defaultExportRows.join(`,${n}${t}`)}${n}};${n}`;
+    return `${namedExportCode}${arbitraryExportCode}${defaultExportCode}`;
+};
+
 var version$1 = "16.0.3";
 var peerDependencies$1 = {
 	rollup: "^2.78.0||^3.0.0||^4.0.0"
@@ -10885,6 +11013,40 @@ function commonjs(options = {}) {
   };
 }
 
+function json(options) {
+  if ( options === void 0 ) options = {};
+
+  var filter = createFilter(options.include, options.exclude);
+  var indent = 'indent' in options ? options.indent : '\t';
+
+  return {
+    name: 'json',
+
+    // eslint-disable-next-line no-shadow
+    transform: function transform(code, id) {
+      if (id.slice(-5) !== '.json' || !filter(id)) { return null; }
+
+      try {
+        var parsed = JSON.parse(code);
+        return {
+          code: dataToEsm(parsed, {
+            preferConst: options.preferConst,
+            compact: options.compact,
+            namedExports: options.namedExports,
+            includeArbitraryNames: options.includeArbitraryNames,
+            indent: indent
+          }),
+          map: { mappings: '' }
+        };
+      } catch (err) {
+        var message = 'Could not parse JSON file';
+        this.error({ message: message, id: id, cause: err });
+        return null;
+      }
+    }
+  };
+}
+
 const hydrateServerOutputTarget = (outputTarget) => ({
   type: "custom",
   name: "nlx-hydrate-server",
@@ -10895,44 +11057,49 @@ const hydrateServerOutputTarget = (outputTarget) => ({
     if ((buildCtx.hydrateAppFilePath || "").length === 0) {
       return;
     }
-    try {
-      const buildDirPath = path$2.join(
-        buildCtx.config.cacheDir || path$2.join(buildCtx.config.rootDir, ".stencil"),
-        "nlx-hydrate-server"
-      );
-      await promises.mkdir(buildDirPath, { recursive: true });
-      const outputDirPath = outputTarget.dir;
-      await promises.mkdir(outputDirPath, { recursive: true });
-      await promises.copyFile(path$2.join(__dirname, "server.js"), path$2.join(buildDirPath, "server.js"));
-      await promises.copyFile(buildCtx.hydrateAppFilePath, path$2.join(buildDirPath, "hydrate-app.js"));
-      await promises.writeFile(
-        path$2.join(buildDirPath, "index.js"),
-        `
+    const hooksPath = outputTarget.hooksModule ? path$2.resolve(buildCtx.config.rootDir, outputTarget.hooksModule) : void 0;
+    if (hooksPath) {
+      await promises.access(hooksPath).catch(() => {
+        throw new Error(`hooksModule "${outputTarget.hooksModule}" not found at ${hooksPath}`);
+      });
+    }
+    const buildDirPath = path$2.join(
+      buildCtx.config.cacheDir || path$2.join(buildCtx.config.rootDir, ".stencil"),
+      "nlx-hydrate-server"
+    );
+    await promises.mkdir(buildDirPath, { recursive: true });
+    const outputDirPath = outputTarget.dir;
+    await promises.mkdir(outputDirPath, { recursive: true });
+    await promises.copyFile(path$2.join(__dirname, "server.js"), path$2.join(buildDirPath, "server.js"));
+    await promises.copyFile(buildCtx.hydrateAppFilePath, path$2.join(buildDirPath, "hydrate-app.js"));
+    const hooksRequire = hooksPath ? `const hooks = require(${JSON.stringify(hooksPath)});
+` : "";
+    const serverOptions = hooksPath ? "{onError: hooks.onError}" : "{}";
+    await promises.writeFile(
+      path$2.join(buildDirPath, "index.js"),
+      `
 const {createServer} = require('./server.js');
 const {renderToString} = require('./hydrate-app.js');
-
+${hooksRequire}
 const PORT = process.env.PORT || 80;
 
-createServer(renderToString).listen(PORT, (error) => {
-    if (error) throw error;
-    console.log('Hydrate server listening on', PORT);
+createServer(renderToString, ${serverOptions}).listen(PORT, (error) => {
+  if (error) throw error;
+  console.log('Hydrate server listening on', PORT);
 });`
-      );
-      const rollupOptions = {
-        input: path$2.join(buildDirPath, "index.js"),
-        treeshake: false,
-        plugins: [commonjs(), nodeResolve()]
-      };
-      const rollupBuild = await rollup.rollup(rollupOptions);
-      const outputFilePath = path$2.join(outputDirPath, "index.js");
-      const rollupOutput = await rollupBuild.generate({
-        file: outputFilePath,
-        format: "cjs"
-      });
-      await compilerCtx.fs.writeFile(outputFilePath, rollupOutput.output[0].code, { immediateWrite: true });
-    } catch (e) {
-      console.log(e);
-    }
+    );
+    const rollupOptions = {
+      input: path$2.join(buildDirPath, "index.js"),
+      treeshake: false,
+      plugins: [json(), commonjs(), nodeResolve()]
+    };
+    const rollupBuild = await rollup.rollup(rollupOptions);
+    const outputFilePath = path$2.join(outputDirPath, "index.js");
+    const rollupOutput = await rollupBuild.generate({
+      file: outputFilePath,
+      format: "cjs"
+    });
+    await compilerCtx.fs.writeFile(outputFilePath, rollupOutput.output[0].code, { immediateWrite: true });
   }
 });
 

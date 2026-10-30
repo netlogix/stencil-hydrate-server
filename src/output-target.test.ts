@@ -2,6 +2,7 @@ import {describe, it, expect, vi, beforeEach} from 'vitest'
 import {join} from 'path'
 
 const mocks = vi.hoisted(() => ({
+  access: vi.fn().mockResolvedValue(undefined),
   copyFile: vi.fn().mockResolvedValue(undefined),
   writeFile: vi.fn().mockResolvedValue(undefined),
   mkdir: vi.fn().mockResolvedValue(undefined),
@@ -9,6 +10,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('fs/promises', () => ({
+  access: mocks.access,
   copyFile: mocks.copyFile,
   writeFile: mocks.writeFile,
   mkdir: mocks.mkdir
@@ -20,6 +22,7 @@ vi.mock('rollup', () => ({
 
 vi.mock('@rollup/plugin-node-resolve', () => ({default: vi.fn(() => ({name: 'mock-resolve'}))}))
 vi.mock('@rollup/plugin-commonjs', () => ({default: vi.fn(() => ({name: 'mock-commonjs'}))}))
+vi.mock('@rollup/plugin-json', () => ({default: vi.fn(() => ({name: 'mock-json'}))}))
 
 import {hydrateServerOutputTarget} from './output-target'
 
@@ -80,6 +83,38 @@ describe('hydrateServerOutputTarget', () => {
     expect(writeFileCompiler).toHaveBeenCalledWith(outputFilePath, 'BUNDLED_CODE', {immediateWrite: true})
   })
 
+  it('requires the hooks module by absolute path and passes onError to createServer', async () => {
+    mocks.rollup.mockResolvedValue({generate: vi.fn().mockResolvedValue({output: [{code: 'X'}]})})
+    const compilerCtx: any = {fs: {writeFile: vi.fn().mockResolvedValue(undefined)}}
+    const buildCtx: any = {
+      hydrateAppFilePath: '/project/.stencil/hydrate/index.js',
+      config: {cacheDir: '/project/.cache', rootDir: '/project'}
+    }
+    const outputTarget = hydrateServerOutputTarget({dir: '/project/dist-server', hooksModule: './ssr/hooks.js'})
+
+    await outputTarget.generator({} as any, compilerCtx, buildCtx, {} as any)
+
+    const [, indexContent] = mocks.writeFile.mock.calls[0] as [string, string]
+    expect(indexContent).toContain(`require(${JSON.stringify(join('/project', 'ssr', 'hooks.js'))})`)
+    expect(indexContent).toContain('createServer(renderToString, {onError: hooks.onError})')
+  })
+
+  it('does not require a hooks module when none is configured', async () => {
+    mocks.rollup.mockResolvedValue({generate: vi.fn().mockResolvedValue({output: [{code: 'X'}]})})
+    const compilerCtx: any = {fs: {writeFile: vi.fn().mockResolvedValue(undefined)}}
+    const buildCtx: any = {
+      hydrateAppFilePath: '/project/.stencil/hydrate/index.js',
+      config: {cacheDir: '/project/.cache', rootDir: '/project'}
+    }
+    const outputTarget = hydrateServerOutputTarget({dir: '/project/dist-server'})
+
+    await outputTarget.generator({} as any, compilerCtx, buildCtx, {} as any)
+
+    const [, indexContent] = mocks.writeFile.mock.calls[0] as [string, string]
+    expect(indexContent).not.toContain('hooks')
+    expect(indexContent).toContain('createServer(renderToString, {})')
+  })
+
   it('falls back to <rootDir>/.stencil when config.cacheDir is not set', async () => {
     mocks.rollup.mockResolvedValue({generate: vi.fn().mockResolvedValue({output: [{code: 'X'}]})})
     const compilerCtx: any = {fs: {writeFile: vi.fn().mockResolvedValue(undefined)}}
@@ -95,8 +130,7 @@ describe('hydrateServerOutputTarget', () => {
     expect(mocks.mkdir).toHaveBeenCalledWith(buildDirPath, {recursive: true})
   })
 
-  it('catches and logs errors instead of throwing', async () => {
-    const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined)
+  it('rethrows errors so that Stencil fails the build', async () => {
     const error = new Error('boom')
     mocks.mkdir.mockRejectedValueOnce(error)
 
@@ -106,9 +140,6 @@ describe('hydrateServerOutputTarget', () => {
     }
     const outputTarget = hydrateServerOutputTarget({dir: '/project/dist-server'})
 
-    await expect(outputTarget.generator({} as any, {} as any, buildCtx, {} as any)).resolves.toBeUndefined()
-    expect(consoleLogSpy).toHaveBeenCalledWith(error)
-
-    consoleLogSpy.mockRestore()
+    await expect(outputTarget.generator({} as any, {} as any, buildCtx, {} as any)).rejects.toBe(error)
   })
 })
