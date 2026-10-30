@@ -20,6 +20,7 @@ vi.mock('rollup', () => ({
 
 vi.mock('@rollup/plugin-node-resolve', () => ({default: vi.fn(() => ({name: 'mock-resolve'}))}))
 vi.mock('@rollup/plugin-commonjs', () => ({default: vi.fn(() => ({name: 'mock-commonjs'}))}))
+vi.mock('@rollup/plugin-json', () => ({default: vi.fn(() => ({name: 'mock-json'}))}))
 
 import {hydrateServerOutputTarget} from './output-target'
 

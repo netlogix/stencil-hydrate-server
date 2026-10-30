@@ -5,6 +5,7 @@ import {join, resolve as resolvePath} from 'path'
 import {rollup, RollupOptions} from 'rollup'
 import resolve from '@rollup/plugin-node-resolve'
 import commonjs from '@rollup/plugin-commonjs'
+import json from '@rollup/plugin-json'
 
 export const hydrateServerOutputTarget = (outputTarget: any): OutputTargetCustom => ({
   type: 'custom',
@@ -56,7 +57,7 @@ createServer(renderToString, ${serverOptions}).listen(PORT, (error) => {
       const rollupOptions: RollupOptions = {
         input: join(buildDirPath, 'index.js'),
         treeshake: false,
-        plugins: [commonjs(), resolve()]
+        plugins: [json(), commonjs(), resolve()]
       }
 
       const rollupBuild = await rollup(rollupOptions)

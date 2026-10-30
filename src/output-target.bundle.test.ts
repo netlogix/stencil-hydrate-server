@@ -32,7 +32,11 @@ describe('hooksModule bundling', () => {
         `exports.createServer = (render, options) => ({listen: (port, callback) => { options.onError(new Error('boom'), {kind: 'test'}); callback() }})`
       )
       writeFileSync(join(root, '.stencil', 'hydrate', 'index.js'), 'exports.renderToString = async () => ({})')
-      writeFileSync(join(root, 'ssr', 'helper.js'), `exports.label = name => 'hook:' + name`)
+      writeFileSync(join(root, 'ssr', 'prefix.json'), JSON.stringify({prefix: 'hook:'}))
+      writeFileSync(
+        join(root, 'ssr', 'helper.js'),
+        `const {prefix} = require('./prefix.json')\nexports.label = name => prefix + name`
+      )
       writeFileSync(
         join(root, 'ssr', 'hooks.js'),
         `const {label} = require('./helper')\nexports.onError = (error, context) => console.log(label(context.kind), error.message)`
