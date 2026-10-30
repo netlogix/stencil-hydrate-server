@@ -7085,16 +7085,16 @@ for (let i = 0; i < chars.length; i++) {
   intToChar[i] = c;
   charToInt[c] = i;
 }
-function encodeInteger(builder, num, relative) {
-  let delta = num - relative;
-  delta = delta < 0 ? -delta << 1 | 1 : delta << 1;
+function encodeInteger(builder, num) {
   do {
-    let clamped = delta & 31;
-    delta >>>= 5;
-    if (delta > 0) clamped |= 32;
+    let clamped = num & 31;
+    num >>>= 5;
+    if (num > 0) clamped |= 32;
     builder.write(intToChar[clamped]);
-  } while (delta > 0);
-  return num;
+  } while (num > 0);
+}
+function encodeSign(num) {
+  return num < 0 ? -num << 1 | 1 : num << 1;
 }
 
 // src/strings.ts
@@ -7146,13 +7146,18 @@ function encode(decoded) {
     for (let j = 0; j < line.length; j++) {
       const segment = line[j];
       if (j > 0) writer.write(comma);
-      genColumn = encodeInteger(writer, segment[0], genColumn);
+      encodeInteger(writer, encodeSign(segment[0] - genColumn));
+      genColumn = segment[0];
       if (segment.length === 1) continue;
-      sourcesIndex = encodeInteger(writer, segment[1], sourcesIndex);
-      sourceLine = encodeInteger(writer, segment[2], sourceLine);
-      sourceColumn = encodeInteger(writer, segment[3], sourceColumn);
+      encodeInteger(writer, encodeSign(segment[1] - sourcesIndex));
+      encodeInteger(writer, encodeSign(segment[2] - sourceLine));
+      encodeInteger(writer, encodeSign(segment[3] - sourceColumn));
+      sourcesIndex = segment[1];
+      sourceLine = segment[2];
+      sourceColumn = segment[3];
       if (segment.length === 4) continue;
-      namesIndex = encodeInteger(writer, segment[4], namesIndex);
+      encodeInteger(writer, encodeSign(segment[4] - namesIndex));
+      namesIndex = segment[4];
     }
   }
   return writer.flush();
