@@ -1,6 +1,6 @@
 import type {Config} from '@stencil/core'
 import type {BuildCtx, CompilerCtx, OutputTargetCustom} from '@stencil/core/internal'
-import {copyFile, writeFile, mkdir} from 'fs/promises'
+import {access, copyFile, writeFile, mkdir} from 'fs/promises'
 import {join, resolve as resolvePath} from 'path'
 import {rollup, RollupOptions} from 'rollup'
 import resolve from '@rollup/plugin-node-resolve'
@@ -18,60 +18,64 @@ export const hydrateServerOutputTarget = (outputTarget: any): OutputTargetCustom
       return
     }
 
-    try {
-      const buildDirPath = join(
-        buildCtx.config.cacheDir || join(buildCtx.config.rootDir!, '.stencil'),
-        'nlx-hydrate-server'
-      )
-      await mkdir(buildDirPath, {recursive: true})
+    // rollup leaves a require it cannot resolve in the bundle, which would crash the server at startup
+    const hooksPath = outputTarget.hooksModule
+      ? resolvePath(buildCtx.config.rootDir!, outputTarget.hooksModule)
+      : undefined
+    if (hooksPath) {
+      await access(hooksPath).catch(() => {
+        throw new Error(`hooksModule "${outputTarget.hooksModule}" not found at ${hooksPath}`)
+      })
+    }
 
-      const outputDirPath = outputTarget.dir
-      await mkdir(outputDirPath, {recursive: true})
+    const buildDirPath = join(
+      buildCtx.config.cacheDir || join(buildCtx.config.rootDir!, '.stencil'),
+      'nlx-hydrate-server'
+    )
+    await mkdir(buildDirPath, {recursive: true})
 
-      await copyFile(join(__dirname, 'server.js'), join(buildDirPath, 'server.js'))
+    const outputDirPath = outputTarget.dir
+    await mkdir(outputDirPath, {recursive: true})
 
-      await copyFile(buildCtx.hydrateAppFilePath, join(buildDirPath, 'hydrate-app.js'))
+    await copyFile(join(__dirname, 'server.js'), join(buildDirPath, 'server.js'))
 
-      // Required by absolute path and not copied, so the hooks module resolves its own dependencies
-      // (e.g. an error reporting SDK) from where it lives in the consuming project. The rollup run below
-      // inlines it, so the generated index.js does not need the hooks source at runtime.
-      const hooksRequire = outputTarget.hooksModule
-        ? `const hooks = require(${JSON.stringify(resolvePath(buildCtx.config.rootDir!, outputTarget.hooksModule))});\n`
-        : ''
-      const serverOptions = outputTarget.hooksModule ? '{onError: hooks.onError}' : '{}'
+    await copyFile(buildCtx.hydrateAppFilePath, join(buildDirPath, 'hydrate-app.js'))
 
-      await writeFile(
-        join(buildDirPath, 'index.js'),
-        `
+    // Required by absolute path and not copied, so the hooks module resolves its own dependencies
+    // (e.g. an error reporting SDK) from where it lives in the consuming project. The rollup run below
+    // inlines it, so the generated index.js does not need the hooks source at runtime.
+    const hooksRequire = hooksPath ? `const hooks = require(${JSON.stringify(hooksPath)});\n` : ''
+    const serverOptions = hooksPath ? '{onError: hooks.onError}' : '{}'
+
+    await writeFile(
+      join(buildDirPath, 'index.js'),
+      `
 const {createServer} = require('./server.js');
 const {renderToString} = require('./hydrate-app.js');
 ${hooksRequire}
 const PORT = process.env.PORT || 80;
 
 createServer(renderToString, ${serverOptions}).listen(PORT, (error) => {
-    if (error) throw error;
-    console.log('Hydrate server listening on', PORT);
+  if (error) throw error;
+  console.log('Hydrate server listening on', PORT);
 });`
-      )
+    )
 
-      const rollupOptions: RollupOptions = {
-        input: join(buildDirPath, 'index.js'),
-        treeshake: false,
-        plugins: [json(), commonjs(), resolve()]
-      }
-
-      const rollupBuild = await rollup(rollupOptions)
-
-      const outputFilePath = join(outputDirPath, 'index.js')
-
-      const rollupOutput = await rollupBuild.generate({
-        file: outputFilePath,
-        format: 'cjs'
-      })
-
-      await compilerCtx.fs.writeFile(outputFilePath, rollupOutput.output[0].code, {immediateWrite: true})
-    } catch (e: any) {
-      console.log(e)
+    const rollupOptions: RollupOptions = {
+      input: join(buildDirPath, 'index.js'),
+      treeshake: false,
+      plugins: [json(), commonjs(), resolve()]
     }
+
+    const rollupBuild = await rollup(rollupOptions)
+
+    const outputFilePath = join(outputDirPath, 'index.js')
+
+    const rollupOutput = await rollupBuild.generate({
+      file: outputFilePath,
+      format: 'cjs'
+    })
+
+    await compilerCtx.fs.writeFile(outputFilePath, rollupOutput.output[0].code, {immediateWrite: true})
   }
 })

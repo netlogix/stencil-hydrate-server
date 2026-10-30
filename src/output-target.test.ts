@@ -2,6 +2,7 @@ import {describe, it, expect, vi, beforeEach} from 'vitest'
 import {join} from 'path'
 
 const mocks = vi.hoisted(() => ({
+  access: vi.fn().mockResolvedValue(undefined),
   copyFile: vi.fn().mockResolvedValue(undefined),
   writeFile: vi.fn().mockResolvedValue(undefined),
   mkdir: vi.fn().mockResolvedValue(undefined),
@@ -9,6 +10,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('fs/promises', () => ({
+  access: mocks.access,
   copyFile: mocks.copyFile,
   writeFile: mocks.writeFile,
   mkdir: mocks.mkdir
@@ -128,8 +130,7 @@ describe('hydrateServerOutputTarget', () => {
     expect(mocks.mkdir).toHaveBeenCalledWith(buildDirPath, {recursive: true})
   })
 
-  it('catches and logs errors instead of throwing', async () => {
-    const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined)
+  it('rethrows errors so that Stencil fails the build', async () => {
     const error = new Error('boom')
     mocks.mkdir.mockRejectedValueOnce(error)
 
@@ -139,9 +140,6 @@ describe('hydrateServerOutputTarget', () => {
     }
     const outputTarget = hydrateServerOutputTarget({dir: '/project/dist-server'})
 
-    await expect(outputTarget.generator({} as any, {} as any, buildCtx, {} as any)).resolves.toBeUndefined()
-    expect(consoleLogSpy).toHaveBeenCalledWith(error)
-
-    consoleLogSpy.mockRestore()
+    await expect(outputTarget.generator({} as any, {} as any, buildCtx, {} as any)).rejects.toBe(error)
   })
 })

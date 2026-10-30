@@ -65,4 +65,30 @@ describe('hooksModule bundling', () => {
       rmSync(root, {recursive: true, force: true})
     }
   })
+
+  it('rejects instead of silently producing no server when the hooks module cannot be bundled', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'hydrate-server-bundle-'))
+    try {
+      mkdirSync(join(root, '.stencil', 'hydrate'), {recursive: true})
+      stubServer.path = join(root, 'stub-server.js')
+      writeFileSync(stubServer.path, 'exports.createServer = () => ({listen: () => undefined})')
+      writeFileSync(join(root, '.stencil', 'hydrate', 'index.js'), 'exports.renderToString = async () => ({})')
+
+      const writeCompilerFile = vi.fn()
+      const generated = hydrateServerOutputTarget({
+        dir: join(root, 'dist', 'ssr-server'),
+        hooksModule: './ssr/missing.js'
+      }).generator(
+        {} as any,
+        {fs: {writeFile: writeCompilerFile}} as any,
+        {hydrateAppFilePath: join(root, '.stencil', 'hydrate', 'index.js'), config: {rootDir: root}} as any,
+        {} as any
+      )
+
+      await expect(generated).rejects.toThrow()
+      expect(writeCompilerFile).not.toHaveBeenCalled()
+    } finally {
+      rmSync(root, {recursive: true, force: true})
+    }
+  })
 })
