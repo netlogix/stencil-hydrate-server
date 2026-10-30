@@ -1,6 +1,11 @@
 import * as http from 'http'
 import {parseHtmlToDocument} from '@stencil/core/mock-doc'
 import type {HydrateResults, SerializeDocumentOptions} from '@stencil/core/internal'
+import {resolveServerOptions, type ServerOptions} from './options'
+import {createSemaphore, QueueRejectedError, type RenderSlot} from './semaphore'
+import {createMetrics, METRICS_CONTENT_TYPE, type RenderResult} from './metrics'
+
+export type {ServerOptions} from './options'
 
 /**
  * Based on https://github.com/csquared/node-logfmt/blob/master/lib/stringify.js with additions for nested objects
@@ -46,13 +51,90 @@ const logfmt = function (data: any, prefix: string = ''): string {
   return line.join(' ')
 }
 
+/**
+ * Reads the request body, giving up as soon as it exceeds `maxBodySize`.
+ *
+ * `Content-Length` is checked up front where present, and the received bytes are counted while
+ * streaming because chunked requests do not announce their size. Returns `null` when the limit
+ * is exceeded.
+ */
+const readBody = async (request: http.IncomingMessage, maxBodySize: number): Promise<Buffer | null> => {
+  const announcedLength = Number(request.headers['content-length'])
+
+  if (Number.isFinite(announcedLength) && announcedLength > maxBodySize) {
+    return null
+  }
+
+  const chunks: Buffer[] = []
+  let size = 0
+
+  for await (const chunk of request) {
+    size += chunk.length
+
+    if (size > maxBodySize) {
+      return null
+    }
+
+    chunks.push(chunk)
+  }
+
+  return Buffer.concat(chunks)
+}
+
+interface RenderRequest {
+  body: string
+  url?: string
+  labels?: unknown
+  settings?: unknown
+}
+
+/**
+ * Parses the request payload. Returns `null` for anything that is not a JSON object with a string
+ * `body`, so that malformed requests are answered with 400 instead of surfacing as a server error.
+ */
+const parsePayload = (rawBody: Buffer): RenderRequest | null => {
+  let payload: unknown
+
+  try {
+    payload = JSON.parse(rawBody.toString())
+  } catch {
+    return null
+  }
+
+  if (typeof payload !== 'object' || payload === null || typeof (payload as RenderRequest).body !== 'string') {
+    return null
+  }
+
+  return payload as RenderRequest
+}
+
 export const createServer = (
-  renderToString: (html: string | any, options?: SerializeDocumentOptions) => Promise<HydrateResults>
+  renderToString: (html: string | any, options?: SerializeDocumentOptions) => Promise<HydrateResults>,
+  serverOptions: ServerOptions = {}
 ) => {
-  return http.createServer(async (request, response) => {
+  const {options, warnings} = resolveServerOptions(serverOptions)
+
+  for (const warning of warnings) {
+    console.log(logfmt({time: new Date().toJSON(), level: 'warn', message: warning}))
+  }
+
+  const semaphore = createSemaphore(options)
+  const metrics = createMetrics({
+    activeRenders: () => semaphore.active,
+    queueDepth: () => semaphore.queued
+  })
+
+  const server = http.createServer(async (request, response) => {
     if (request.method === 'GET' && request.url === '/healthz') {
       response.statusCode = 200
       response.write('ok')
+      response.end()
+      return
+    }
+
+    if (request.method === 'GET' && request.url === '/metrics') {
+      response.writeHead(200, {'Content-Type': METRICS_CONTENT_TYPE})
+      response.write(metrics.render())
       response.end()
       return
     }
@@ -71,28 +153,140 @@ export const createServer = (
       return
     }
 
-    try {
-      const chunks = []
-      for await (const chunk of request) {
-        chunks.push(chunk)
+    const abortController = new AbortController()
+
+    response.on('close', () => {
+      if (!response.writableFinished) {
+        abortController.abort()
       }
-      const {body, url, labels, settings} = JSON.parse(Buffer.concat(chunks).toString())
+    })
+
+    let outcome: RenderResult | undefined
+    let renderAttempted = false
+
+    try {
+      const rawBody = await readBody(request, options.maxBodySize)
+
+      if (rawBody === null) {
+        metrics.countRejected('body_too_large')
+        console.log(
+          logfmt({
+            time: new Date().toJSON(),
+            status: 413,
+            statusMessage: 'Request body too large',
+            method: request.method,
+            url: request.url,
+            maxBodySize: options.maxBodySize
+          })
+        )
+        response.setHeader('Connection', 'close')
+        response.writeHead(413)
+        response.end()
+        return
+      }
+
+      const payload = parsePayload(rawBody)
+
+      if (payload === null) {
+        metrics.countRejected('bad_request')
+        console.log(
+          logfmt({
+            time: new Date().toJSON(),
+            status: 400,
+            statusMessage: 'Request body must be JSON with a string "body"',
+            method: request.method,
+            url: request.url
+          })
+        )
+        response.writeHead(400)
+        response.end()
+        return
+      }
+
+      const {body, url, labels, settings} = payload
 
       const convertedBody = convertHtmlSpecialitiesToComments(body)
 
-      const results = await renderToString(convertedBody, {
-        prettyHtml: false,
-        url: url,
-        runtimeLogging: true,
-        beforeHydrate: (document: any) => {
-          document.body.setAttribute('data-nlx-ssr-labels', JSON.stringify(labels))
-          document.body.setAttribute('data-nlx-ssr-settings', JSON.stringify(settings))
-        },
-        afterHydrate: (document: any) => {
-          document.body.removeAttribute('data-nlx-ssr-labels')
-          document.body.removeAttribute('data-nlx-ssr-settings')
+      let slot: RenderSlot
+
+      try {
+        slot = await semaphore.acquire(abortController.signal)
+      } catch (error) {
+        if (!(error instanceof QueueRejectedError)) {
+          throw error
         }
-      })
+
+        if (error.reason === 'aborted') {
+          metrics.countRejected('client_disconnected')
+          console.log(
+            logfmt({
+              time: new Date().toJSON(),
+              status: 499,
+              statusMessage: 'Client disconnected while queued',
+              url: url
+            })
+          )
+          response.destroy()
+          return
+        }
+
+        metrics.countRejected(error.reason)
+        console.log(
+          logfmt({
+            time: new Date().toJSON(),
+            status: 503,
+            statusMessage: 'Hydrate server busy',
+            reason: error.reason,
+            url: url,
+            active: semaphore.active,
+            queued: semaphore.queued
+          })
+        )
+        response.writeHead(503, {'Retry-After': '1'})
+        response.end()
+        return
+      }
+
+      if (abortController.signal.aborted) {
+        slot.release()
+        metrics.countRejected('client_disconnected')
+        console.log(
+          logfmt({
+            time: new Date().toJSON(),
+            status: 499,
+            statusMessage: 'Client disconnected before rendering',
+            url: url
+          })
+        )
+        response.destroy()
+        return
+      }
+
+      metrics.observeQueueWait(slot.waitMs / 1000)
+
+      let results: HydrateResults
+      const renderStartedAt = Date.now()
+
+      try {
+        renderAttempted = true
+        results = await renderToString(convertedBody, {
+          prettyHtml: false,
+          url: url,
+          runtimeLogging: true,
+          timeout: options.hydrateTimeout,
+          beforeHydrate: (document: any) => {
+            document.body.setAttribute('data-nlx-ssr-labels', JSON.stringify(labels))
+            document.body.setAttribute('data-nlx-ssr-settings', JSON.stringify(settings))
+          },
+          afterHydrate: (document: any) => {
+            document.body.removeAttribute('data-nlx-ssr-labels')
+            document.body.removeAttribute('data-nlx-ssr-settings')
+          }
+        })
+      } finally {
+        metrics.observeRenderDuration((Date.now() - renderStartedAt) / 1000)
+        slot.release()
+      }
 
       console.log(
         logfmt({
@@ -100,16 +294,19 @@ export const createServer = (
           buildId: results?.buildId,
           url: url,
           status: results?.httpStatus,
+          queueWaitMs: slot.waitMs,
+          renderMs: Date.now() - renderStartedAt,
           diagnostics: results?.diagnostics
         })
       )
 
       if (results.httpStatus !== 200) {
+        outcome = hasExceededTimeout(results) ? 'timeout' : 'hydration_error'
         console.log(
           logfmt({
             time: new Date().toJSON(),
             status: 500,
-            statusMessage: 'Hydration error',
+            statusMessage: outcome === 'timeout' ? 'Hydration timeout' : 'Hydration error',
             method: request.method,
             url: request.url
           })
@@ -126,10 +323,31 @@ export const createServer = (
           : extractFragments(results.html ?? '', !hasMetaCharsetTag(convertedBody))
       )
 
+      outcome = 'ok'
+
       response.writeHead(200, {'Content-Type': 'text/html'})
       response.write(resultHtmlDocumentString)
       response.end()
     } catch (error) {
+      if (!renderAttempted && abortController.signal.aborted) {
+        metrics.countRejected('client_disconnected')
+        console.log(
+          logfmt({
+            time: new Date().toJSON(),
+            status: 499,
+            statusMessage: 'Client disconnected while sending the request',
+            method: request.method,
+            url: request.url
+          })
+        )
+        response.destroy()
+        return
+      }
+
+      if (renderAttempted) {
+        outcome = 'error'
+      }
+
       console.log(
         logfmt({
           time: new Date().toJSON(),
@@ -139,9 +357,30 @@ export const createServer = (
       )
       response.statusCode = 500
       response.end()
+    } finally {
+      if (outcome !== undefined) {
+        metrics.countRender(outcome)
+      }
     }
   })
+
+  server.requestTimeout = options.requestTimeout
+  server.headersTimeout = options.headersTimeout
+
+  server.on('close', () => metrics.close())
+
+  return server
 }
+
+/**
+ * Stencil reports an exceeded `timeout` only as a diagnostic, not as a status of its own.
+ *
+ * These renders are worth telling apart: Stencil closes the window while component promises may
+ * still be pending. Before Stencil 4.45.0 those keep their copy of the app in memory after the slot
+ * was released; from 4.45.0 on only promises that can neither be aborted nor ever settle do.
+ */
+const hasExceededTimeout = (results: HydrateResults) =>
+  results.diagnostics?.some(diagnostic => diagnostic.messageText?.startsWith('Hydrate exceeded timeout')) ?? false
 
 const esiIncludeRegex = /<esi:include\s+src="([^"]*)"\s*\/?>/g
 const nbspRegex = /&nbsp;/g
