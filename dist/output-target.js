@@ -11057,47 +11057,49 @@ const hydrateServerOutputTarget = (outputTarget) => ({
     if ((buildCtx.hydrateAppFilePath || "").length === 0) {
       return;
     }
-    try {
-      const buildDirPath = path$2.join(
-        buildCtx.config.cacheDir || path$2.join(buildCtx.config.rootDir, ".stencil"),
-        "nlx-hydrate-server"
-      );
-      await promises.mkdir(buildDirPath, { recursive: true });
-      const outputDirPath = outputTarget.dir;
-      await promises.mkdir(outputDirPath, { recursive: true });
-      await promises.copyFile(path$2.join(__dirname, "server.js"), path$2.join(buildDirPath, "server.js"));
-      await promises.copyFile(buildCtx.hydrateAppFilePath, path$2.join(buildDirPath, "hydrate-app.js"));
-      const hooksRequire = outputTarget.hooksModule ? `const hooks = require(${JSON.stringify(path$2.resolve(buildCtx.config.rootDir, outputTarget.hooksModule))});
+    const hooksPath = outputTarget.hooksModule ? path$2.resolve(buildCtx.config.rootDir, outputTarget.hooksModule) : void 0;
+    if (hooksPath) {
+      await promises.access(hooksPath).catch(() => {
+        throw new Error(`hooksModule "${outputTarget.hooksModule}" not found at ${hooksPath}`);
+      });
+    }
+    const buildDirPath = path$2.join(
+      buildCtx.config.cacheDir || path$2.join(buildCtx.config.rootDir, ".stencil"),
+      "nlx-hydrate-server"
+    );
+    await promises.mkdir(buildDirPath, { recursive: true });
+    const outputDirPath = outputTarget.dir;
+    await promises.mkdir(outputDirPath, { recursive: true });
+    await promises.copyFile(path$2.join(__dirname, "server.js"), path$2.join(buildDirPath, "server.js"));
+    await promises.copyFile(buildCtx.hydrateAppFilePath, path$2.join(buildDirPath, "hydrate-app.js"));
+    const hooksRequire = hooksPath ? `const hooks = require(${JSON.stringify(hooksPath)});
 ` : "";
-      const serverOptions = outputTarget.hooksModule ? "{onError: hooks.onError}" : "{}";
-      await promises.writeFile(
-        path$2.join(buildDirPath, "index.js"),
-        `
+    const serverOptions = hooksPath ? "{onError: hooks.onError}" : "{}";
+    await promises.writeFile(
+      path$2.join(buildDirPath, "index.js"),
+      `
 const {createServer} = require('./server.js');
 const {renderToString} = require('./hydrate-app.js');
 ${hooksRequire}
 const PORT = process.env.PORT || 80;
 
 createServer(renderToString, ${serverOptions}).listen(PORT, (error) => {
-    if (error) throw error;
-    console.log('Hydrate server listening on', PORT);
+  if (error) throw error;
+  console.log('Hydrate server listening on', PORT);
 });`
-      );
-      const rollupOptions = {
-        input: path$2.join(buildDirPath, "index.js"),
-        treeshake: false,
-        plugins: [json(), commonjs(), nodeResolve()]
-      };
-      const rollupBuild = await rollup.rollup(rollupOptions);
-      const outputFilePath = path$2.join(outputDirPath, "index.js");
-      const rollupOutput = await rollupBuild.generate({
-        file: outputFilePath,
-        format: "cjs"
-      });
-      await compilerCtx.fs.writeFile(outputFilePath, rollupOutput.output[0].code, { immediateWrite: true });
-    } catch (e) {
-      console.log(e);
-    }
+    );
+    const rollupOptions = {
+      input: path$2.join(buildDirPath, "index.js"),
+      treeshake: false,
+      plugins: [json(), commonjs(), nodeResolve()]
+    };
+    const rollupBuild = await rollup.rollup(rollupOptions);
+    const outputFilePath = path$2.join(outputDirPath, "index.js");
+    const rollupOutput = await rollupBuild.generate({
+      file: outputFilePath,
+      format: "cjs"
+    });
+    await compilerCtx.fs.writeFile(outputFilePath, rollupOutput.output[0].code, { immediateWrite: true });
   }
 });
 
