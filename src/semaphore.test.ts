@@ -107,6 +107,26 @@ describe('createSemaphore', () => {
     expect(semaphore.queued).toBe(0)
   })
 
+  it('rejects an expired waiter whose timer callback has not run yet and passes the slot on', async () => {
+    const semaphore = createSemaphore({maxConcurrency: 1, maxQueue: 4, queueWaitTimeout: 1000})
+
+    const first = await semaphore.acquire()
+    const expired = semaphore.acquire()
+    expired.catch(() => undefined)
+
+    // a blocked event loop: the clock moves on, but no timer callback runs
+    vi.setSystemTime(Date.now() + 500)
+    const fresh = semaphore.acquire()
+    vi.setSystemTime(Date.now() + 600)
+
+    first.release()
+
+    expect(await rejectionReason(expired)).toBe('queue_timeout')
+    expect((await fresh).waitMs).toBe(600)
+    expect(semaphore.active).toBe(1)
+    expect(semaphore.queued).toBe(0)
+  })
+
   it('rejects with aborted when the caller goes away while queued', async () => {
     const semaphore = createSemaphore({maxConcurrency: 1, maxQueue: 4, queueWaitTimeout: 60_000})
     const controller = new AbortController()

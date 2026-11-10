@@ -132,10 +132,16 @@ export const createSemaphore = ({maxConcurrency, maxQueue, queueWaitTimeout}: Se
           if (settled) {
             return
           }
+          const waitMs = Date.now() - startedAt
+          // A blocked event loop can run this release before the overdue timer callback.
+          if (waitMs >= queueWaitTimeout) {
+            fail('queue_timeout')
+            return
+          }
           settled = true
           cleanup()
           active++
-          resolve(createSlot(Date.now() - startedAt))
+          resolve(createSlot(waitMs))
         }
       }
 
