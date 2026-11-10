@@ -176,10 +176,15 @@ const createSemaphore = ({ maxConcurrency, maxQueue, queueWaitTimeout }) => {
           if (settled) {
             return;
           }
+          const waitMs = Date.now() - startedAt;
+          if (waitMs >= queueWaitTimeout) {
+            fail("queue_timeout");
+            return;
+          }
           settled = true;
           cleanup();
           active++;
-          resolve(createSlot(Date.now() - startedAt));
+          resolve(createSlot(waitMs));
         }
       };
       waiting.push(waiter);
@@ -378,6 +383,8 @@ const createServer = (renderToString, serverOptions = {}) => {
     console.log(logfmt({ time: (/* @__PURE__ */ new Date()).toJSON(), level: "warn", message: warning }));
   }
   const semaphore = createSemaphore(options);
+  const maxAdmitted = options.maxConcurrency + options.maxQueue;
+  let admitted = 0;
   const metrics = createMetrics({
     activeRenders: () => semaphore.active,
     queueDepth: () => semaphore.queued
@@ -408,6 +415,25 @@ const createServer = (renderToString, serverOptions = {}) => {
       response.end();
       return;
     }
+    if (admitted >= maxAdmitted) {
+      metrics.countRejected("queue_full");
+      console.log(
+        logfmt({
+          time: (/* @__PURE__ */ new Date()).toJSON(),
+          status: 503,
+          statusMessage: "Hydrate server busy",
+          reason: "queue_full",
+          admitted,
+          active: semaphore.active,
+          queued: semaphore.queued
+        })
+      );
+      response.setHeader("Connection", "close");
+      response.writeHead(503, { "Retry-After": "1" });
+      response.end();
+      return;
+    }
+    admitted++;
     const abortController = new AbortController();
     response.on("close", () => {
       if (!response.writableFinished) {
@@ -588,6 +614,7 @@ const createServer = (renderToString, serverOptions = {}) => {
       response.statusCode = 500;
       response.end();
     } finally {
+      admitted--;
       if (outcome !== void 0) {
         metrics.countRender(outcome);
       }
