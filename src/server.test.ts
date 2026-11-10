@@ -564,6 +564,43 @@ describe('createServer render concurrency', () => {
     }
   })
 
+  it('responds with 503 without reading the body while stalled uploads use up the queue capacity', async () => {
+    const renderToString = vi.fn().mockResolvedValue(buildHydrateResults({html: '<p>hi</p>'}))
+    const {server, baseUrl} = await startServer(renderToString, {maxConcurrency: 1, maxQueue: 1})
+
+    const {port} = new URL(baseUrl)
+    const stalled = await Promise.all(
+      [1, 2].map(async () => {
+        const socket = net.connect(Number(port), '127.0.0.1')
+        await new Promise<void>(resolve => socket.once('connect', resolve))
+        socket.write('POST / HTTP/1.1\r\nHost: localhost\r\nContent-Length: 1000\r\n\r\n{"body":"<p>')
+        return socket
+      })
+    )
+
+    try {
+      await new Promise(resolve => setTimeout(resolve, 20))
+
+      const rejected = await postPage(baseUrl)
+
+      expect(rejected.status).toBe(503)
+      expect(rejected.headers.get('retry-after')).toBe('1')
+      expect(rejected.headers.get('connection')).toBe('close')
+      expect(renderToString).not.toHaveBeenCalled()
+      expect(await (await fetch(`${baseUrl}/metrics`)).text()).toContain(
+        'hydrate_requests_rejected_total{reason="queue_full"} 1'
+      )
+
+      stalled.forEach(socket => socket.destroy())
+      await new Promise(resolve => setTimeout(resolve, 20))
+
+      expect((await postPage(baseUrl)).status).toBe(200)
+    } finally {
+      stalled.forEach(socket => socket.destroy())
+      await stopServer(server)
+    }
+  })
+
   it('logs a warning when the configured options are inconsistent', async () => {
     const renderToString = vi.fn()
     const {server} = await startServer(renderToString, {headersTimeout: 8000, requestTimeout: 6000})

@@ -119,6 +119,10 @@ export const createServer = (
   }
 
   const semaphore = createSemaphore(options)
+  // Bodies are buffered before a request reaches the queue, so the queue alone does not bound
+  // their memory. Admitting at most as many requests as there are slots plus queue entries does.
+  const maxAdmitted = options.maxConcurrency + options.maxQueue
+  let admitted = 0
   const metrics = createMetrics({
     activeRenders: () => semaphore.active,
     queueDepth: () => semaphore.queued
@@ -152,6 +156,28 @@ export const createServer = (
       response.end()
       return
     }
+
+    if (admitted >= maxAdmitted) {
+      metrics.countRejected('queue_full')
+      console.log(
+        logfmt({
+          time: new Date().toJSON(),
+          status: 503,
+          statusMessage: 'Hydrate server busy',
+          reason: 'queue_full',
+          admitted: admitted,
+          active: semaphore.active,
+          queued: semaphore.queued
+        })
+      )
+      // the body is never read, so the connection cannot be reused
+      response.setHeader('Connection', 'close')
+      response.writeHead(503, {'Retry-After': '1'})
+      response.end()
+      return
+    }
+
+    admitted++
 
     const abortController = new AbortController()
 
@@ -358,6 +384,7 @@ export const createServer = (
       response.statusCode = 500
       response.end()
     } finally {
+      admitted--
       if (outcome !== undefined) {
         metrics.countRender(outcome)
       }

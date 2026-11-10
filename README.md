@@ -112,6 +112,11 @@ deployment the environment variables are the way in.
 | `headersTimeout`   | `HYDRATE_HEADERS_TIMEOUT`    | `5000`    | Milliseconds a client may take to send the headers          |
 | `maxBodySize`      | `HYDRATE_MAX_BODY_SIZE`      | `2097152` | Largest accepted request body in bytes, then `413`          |
 
+A request takes its place before its body is read, not only once it waits for a render slot. So at
+most `HYDRATE_CONCURRENCY + HYDRATE_MAX_QUEUE` requests are uploading, waiting or rendering at the
+same time, and buffered bodies stay below that many times `HYDRATE_MAX_BODY_SIZE`. Any further
+request is answered with `503` before its body is read.
+
 ### Picking the timeouts
 
 The server cannot know how long its caller waits. A render that is still running when the caller
