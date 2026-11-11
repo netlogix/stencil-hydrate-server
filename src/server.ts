@@ -158,13 +158,13 @@ export const createServer = (
     }
 
     if (admitted >= maxAdmitted) {
-      metrics.countRejected('queue_full')
+      metrics.countRejected('too_many_requests')
       console.log(
         logfmt({
           time: new Date().toJSON(),
           status: 503,
           statusMessage: 'Hydrate server busy',
-          reason: 'queue_full',
+          reason: 'too_many_requests',
           admitted: admitted,
           active: semaphore.active,
           queued: semaphore.queued
@@ -292,6 +292,7 @@ export const createServer = (
 
       let results: HydrateResults
       const renderStartedAt = Date.now()
+      let renderMs = 0
 
       try {
         renderAttempted = true
@@ -310,7 +311,8 @@ export const createServer = (
           }
         })
       } finally {
-        metrics.observeRenderDuration((Date.now() - renderStartedAt) / 1000)
+        renderMs = Date.now() - renderStartedAt
+        metrics.observeRenderDuration(renderMs / 1000)
         slot.release()
       }
 
@@ -321,24 +323,30 @@ export const createServer = (
           url: url,
           status: results?.httpStatus,
           queueWaitMs: slot.waitMs,
-          renderMs: Date.now() - renderStartedAt,
+          renderMs: renderMs,
           diagnostics: results?.diagnostics
         })
       )
 
-      if (results.httpStatus !== 200) {
-        outcome = hasExceededTimeout(results) ? 'timeout' : 'hydration_error'
+      // Stencil applies a <meta http-equiv="status"> even to a render that ran into the timeout,
+      // so the timeout diagnostic has to be checked on its own.
+      const exceededTimeout = hasExceededTimeout(results)
+
+      if (exceededTimeout || results.httpStatus !== 200) {
+        // the duration is the fallback for a Stencil version that words the diagnostic differently
+        outcome = exceededTimeout || renderMs >= options.hydrateTimeout ? 'timeout' : 'hydration_error'
+        const statusMessage = outcome === 'timeout' ? 'Hydration timeout' : 'Hydration error'
         console.log(
           logfmt({
             time: new Date().toJSON(),
             status: 500,
-            statusMessage: outcome === 'timeout' ? 'Hydration timeout' : 'Hydration error',
+            statusMessage: statusMessage,
             method: request.method,
             url: request.url
           })
         )
         response.statusCode = 500
-        response.statusMessage = 'Hydration error'
+        response.statusMessage = statusMessage
         response.end()
         return
       }

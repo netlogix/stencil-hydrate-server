@@ -8,6 +8,7 @@ export type RenderResult = (typeof RENDER_RESULTS)[number]
 export const REJECTION_REASONS = [
   'queue_full',
   'queue_timeout',
+  'too_many_requests',
   'body_too_large',
   'bad_request',
   'client_disconnected'

@@ -444,10 +444,14 @@ describe('createServer render concurrency', () => {
     }
   })
 
-  it('counts a render that exceeded the hydrate timeout separately from other hydration errors', async () => {
+  it.each([
+    ['without a status', null as unknown as number],
+    ['with a status of 200 from a meta tag', 200]
+  ])('counts a render that exceeded the hydrate timeout %s as timeout', async (_case, httpStatus) => {
     const renderToString = vi.fn().mockResolvedValue(
       buildHydrateResults({
-        httpStatus: null as unknown as number,
+        httpStatus,
+        html: '<p>half rendered</p>',
         diagnostics: [
           {
             level: 'error',
@@ -462,13 +466,47 @@ describe('createServer render concurrency', () => {
     const {server, baseUrl} = await startServer(renderToString)
 
     try {
-      expect((await postPage(baseUrl)).status).toBe(500)
+      const response = await postPage(baseUrl)
+
+      expect(response.status).toBe(500)
+      expect(response.statusText).toBe('Hydration timeout')
+      expect(await response.text()).toBe('')
 
       const metricsBody = await (await fetch(`${baseUrl}/metrics`)).text()
 
       expect(metricsBody).toContain('hydrate_renders_total{result="timeout"} 1')
       expect(metricsBody).toContain('hydrate_renders_total{result="hydration_error"} 0')
+      expect(metricsBody).toContain('hydrate_renders_total{result="ok"} 0')
       expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('statusMessage="Hydration timeout"'))
+    } finally {
+      await stopServer(server)
+    }
+  })
+
+  it('counts a failed render as timeout when it took the whole hydrate timeout, whatever the diagnostic says', async () => {
+    const renderToString = vi.fn(async () => {
+      await new Promise(resolve => setTimeout(resolve, 30))
+      return buildHydrateResults({httpStatus: 500})
+    })
+    const {server, baseUrl} = await startServer(renderToString, {hydrateTimeout: 20})
+
+    try {
+      expect((await postPage(baseUrl)).statusText).toBe('Hydration timeout')
+
+      const metricsBody = await (await fetch(`${baseUrl}/metrics`)).text()
+
+      expect(metricsBody).toContain('hydrate_renders_total{result="timeout"} 1')
+    } finally {
+      await stopServer(server)
+    }
+  })
+
+  it('answers other hydration errors with the status message Hydration error', async () => {
+    const renderToString = vi.fn().mockResolvedValue(buildHydrateResults({httpStatus: 404}))
+    const {server, baseUrl} = await startServer(renderToString)
+
+    try {
+      expect((await postPage(baseUrl)).statusText).toBe('Hydration error')
     } finally {
       await stopServer(server)
     }
@@ -588,7 +626,7 @@ describe('createServer render concurrency', () => {
       expect(rejected.headers.get('connection')).toBe('close')
       expect(renderToString).not.toHaveBeenCalled()
       expect(await (await fetch(`${baseUrl}/metrics`)).text()).toContain(
-        'hydrate_requests_rejected_total{reason="queue_full"} 1'
+        'hydrate_requests_rejected_total{reason="too_many_requests"} 1'
       )
 
       stalled.forEach(socket => socket.destroy())
