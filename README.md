@@ -38,6 +38,7 @@ but responses other than `200` become more frequent:
 | Status | When                                                                                   |
 | ------ | -------------------------------------------------------------------------------------- |
 | `503`  | No render slot became free within `HYDRATE_QUEUE_WAIT_TIMEOUT`, or the queue is full   |
+| `503`  | More requests than render slots plus queue entries are being received at the same time |
 | `413`  | The request body is larger than `HYDRATE_MAX_BODY_SIZE` (default 2 MiB)                |
 | `400`  | The request body is not JSON with a string `body` (previously `500`)                   |
 | `500`  | The render exceeded `HYDRATE_TIMEOUT`, now 3.5 seconds instead of Stencil's 15 seconds |
@@ -57,8 +58,11 @@ Check these for your deployment:
 
 ## Render concurrency
 
-Since version 2.0.0 the generated server renders **one page at a time by default** and queues the
-rest. Previously it started a render for every incoming request immediately.
+Since version 2.0.0 the generated server renders **at most two pages at a time by default** and
+queues the rest. Previously it started a render for every incoming request immediately. Two slots
+let a render that waits on backend requests overlap with another one while keeping peak memory
+bounded. Check the default against your container's memory limit, see
+[Deployment recommendations](#deployment-recommendations).
 
 The reason is how Stencil's hydrate app works: `renderToString` re-evaluates the entire hydrate
 bundle on every call, so each concurrent render holds a full copy of your app plus its parsed
@@ -104,18 +108,19 @@ deployment the environment variables are the way in.
 
 | Option             | Environment variable         | Default   | Meaning                                                     |
 | ------------------ | ---------------------------- | --------- | ----------------------------------------------------------- |
-| `maxConcurrency`   | `HYDRATE_CONCURRENCY`        | `1`       | Renders allowed to run at the same time                     |
+| `maxConcurrency`   | `HYDRATE_CONCURRENCY`        | `2`       | Renders allowed to run at the same time                     |
 | `maxQueue`         | `HYDRATE_MAX_QUEUE`          | `32`      | Requests allowed to wait for a slot, then `503`             |
 | `queueWaitTimeout` | `HYDRATE_QUEUE_WAIT_TIMEOUT` | `1000`    | Milliseconds a request may wait for a slot, then `503`      |
 | `hydrateTimeout`   | `HYDRATE_TIMEOUT`            | `3500`    | Milliseconds a single render may take (Stencil's `timeout`) |
-| `requestTimeout`   | `HYDRATE_REQUEST_TIMEOUT`    | `10000`   | Milliseconds a client may take to send the whole request    |
+| `requestTimeout`   | `HYDRATE_REQUEST_TIMEOUT`    | `5000`    | Milliseconds a client may take to send the whole request    |
 | `headersTimeout`   | `HYDRATE_HEADERS_TIMEOUT`    | `5000`    | Milliseconds a client may take to send the headers          |
 | `maxBodySize`      | `HYDRATE_MAX_BODY_SIZE`      | `2097152` | Largest accepted request body in bytes, then `413`          |
 
 A request takes its place before its body is read, not only once it waits for a render slot. So at
 most `HYDRATE_CONCURRENCY + HYDRATE_MAX_QUEUE` requests are uploading, waiting or rendering at the
 same time, and buffered bodies stay below that many times `HYDRATE_MAX_BODY_SIZE`. Any further
-request is answered with `503` before its body is read.
+request is answered with `503` before its body is read and counted as `too_many_requests`. A slow
+upload holds its place for at most `HYDRATE_REQUEST_TIMEOUT`.
 
 ### Picking the timeouts
 
@@ -147,7 +152,7 @@ lowered to it with a warning at startup.
   with `scripts/loadtest.mjs`, then pick `HYDRATE_CONCURRENCY` so that
   `baseline + HYDRATE_CONCURRENCY x memory per render` stays clearly below the container's memory
   limit. With a baseline of about 280 MB and 130 MB per render, a 500 MB container fits exactly one
-  render at a time.
+  render at a time, so set `HYDRATE_CONCURRENCY=1` there or raise the limit for the default of 2.
 - **Tell V8 about the limit.** Without `--max-old-space-size`, V8 does not know about the container
   limit and collects garbage too late. Set it somewhat below the limit, e.g.
   `NODE_OPTIONS=--max-old-space-size=384` for a 500 MB container. If memory still runs out, the
@@ -216,7 +221,7 @@ the event loop, though, see [Deployment recommendations](#deployment-recommendat
 | `nodejs_gc_duration_seconds`              | histogram |
 
 `result` is one of `ok`, `hydration_error`, `timeout`, `error`. `reason` is one of `queue_full`,
-`queue_timeout`, `body_too_large`, `bad_request`, `client_disconnected`. The request URL is deliberately not a
+`queue_timeout`, `too_many_requests`, `body_too_large`, `bad_request`, `client_disconnected`. The request URL is deliberately not a
 label — it would create one time series per page.
 
 Example scrape configuration:

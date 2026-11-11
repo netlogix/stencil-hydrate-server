@@ -9,10 +9,17 @@ describe('resolveServerOptions', () => {
     expect(warnings).toEqual([])
   })
 
-  it('serialises renders by default so that peak memory stays independent of incoming load', () => {
+  it('bounds renders by default so that peak memory stays independent of incoming load', () => {
     const {options} = resolveServerOptions({}, {})
 
-    expect(options.maxConcurrency).toBe(1)
+    expect(options.maxConcurrency).toBe(2)
+  })
+
+  it('lets a client take no longer to send its request than a 5 second caller waits', () => {
+    const {options} = resolveServerOptions({}, {})
+
+    expect(options.requestTimeout).toBeLessThanOrEqual(5000)
+    expect(options.headersTimeout).toBeLessThanOrEqual(options.requestTimeout)
   })
 
   it('reads values from the environment', () => {

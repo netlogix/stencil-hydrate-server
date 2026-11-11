@@ -28,11 +28,11 @@ export interface ServerOptions {
 export type ResolvedServerOptions = Required<ServerOptions>
 
 export const DEFAULT_SERVER_OPTIONS: ResolvedServerOptions = {
-  maxConcurrency: 1,
+  maxConcurrency: 2,
   maxQueue: 32,
   queueWaitTimeout: 1000,
   hydrateTimeout: 3500,
-  requestTimeout: 10000,
+  requestTimeout: 5000,
   headersTimeout: 5000,
   maxBodySize: 2 * 1024 * 1024
 }
