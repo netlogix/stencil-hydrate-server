@@ -24,11 +24,11 @@ function _interopNamespaceDefault(e) {
 var http__namespace = /*#__PURE__*/_interopNamespaceDefault(http);
 
 const DEFAULT_SERVER_OPTIONS = {
-  maxConcurrency: 1,
+  maxConcurrency: 2,
   maxQueue: 32,
   queueWaitTimeout: 1e3,
   hydrateTimeout: 3500,
-  requestTimeout: 1e4,
+  requestTimeout: 5e3,
   headersTimeout: 5e3,
   maxBodySize: 2 * 1024 * 1024
 };
@@ -206,6 +206,7 @@ const RENDER_RESULTS = ["ok", "hydration_error", "timeout", "error"];
 const REJECTION_REASONS = [
   "queue_full",
   "queue_timeout",
+  "too_many_requests",
   "body_too_large",
   "bad_request",
   "client_disconnected"
@@ -416,13 +417,13 @@ const createServer = (renderToString, serverOptions = {}) => {
       return;
     }
     if (admitted >= maxAdmitted) {
-      metrics.countRejected("queue_full");
+      metrics.countRejected("too_many_requests");
       console.log(
         logfmt({
           time: (/* @__PURE__ */ new Date()).toJSON(),
           status: 503,
           statusMessage: "Hydrate server busy",
-          reason: "queue_full",
+          reason: "too_many_requests",
           admitted,
           active: semaphore.active,
           queued: semaphore.queued
@@ -532,6 +533,7 @@ const createServer = (renderToString, serverOptions = {}) => {
       metrics.observeQueueWait(slot.waitMs / 1e3);
       let results;
       const renderStartedAt = Date.now();
+      let renderMs = 0;
       try {
         renderAttempted = true;
         results = await renderToString(convertedBody, {
@@ -549,7 +551,8 @@ const createServer = (renderToString, serverOptions = {}) => {
           }
         });
       } finally {
-        metrics.observeRenderDuration((Date.now() - renderStartedAt) / 1e3);
+        renderMs = Date.now() - renderStartedAt;
+        metrics.observeRenderDuration(renderMs / 1e3);
         slot.release();
       }
       console.log(
@@ -559,23 +562,25 @@ const createServer = (renderToString, serverOptions = {}) => {
           url,
           status: results?.httpStatus,
           queueWaitMs: slot.waitMs,
-          renderMs: Date.now() - renderStartedAt,
+          renderMs,
           diagnostics: results?.diagnostics
         })
       );
-      if (results.httpStatus !== 200) {
-        outcome = hasExceededTimeout(results) ? "timeout" : "hydration_error";
+      const exceededTimeout = hasExceededTimeout(results);
+      if (exceededTimeout || results.httpStatus !== 200) {
+        outcome = exceededTimeout || renderMs >= options.hydrateTimeout ? "timeout" : "hydration_error";
+        const statusMessage = outcome === "timeout" ? "Hydration timeout" : "Hydration error";
         console.log(
           logfmt({
             time: (/* @__PURE__ */ new Date()).toJSON(),
             status: 500,
-            statusMessage: outcome === "timeout" ? "Hydration timeout" : "Hydration error",
+            statusMessage,
             method: request.method,
             url: request.url
           })
         );
         response.statusCode = 500;
-        response.statusMessage = "Hydration error";
+        response.statusMessage = statusMessage;
         response.end();
         return;
       }
