@@ -1,4 +1,4 @@
-import {describe, it, expect} from 'vitest'
+import {describe, it, expect, vi} from 'vitest'
 import {createMetrics, METRICS_CONTENT_TYPE, REJECTION_REASONS, RENDER_RESULTS} from './metrics'
 
 const build = (activeRenders = 0, queueDepth = 0) =>
@@ -112,17 +112,42 @@ describe('createMetrics', () => {
     metrics.close()
   })
 
-  it('collects garbage collection pauses', async () => {
-    const metrics = build()
+  it('records garbage collection pauses in seconds', async () => {
+    let deliver: ((list: {getEntries: () => Array<{duration: number}>}) => void) | undefined
+    const observe = vi.fn()
 
-    ;(globalThis as {gc?: () => void}).gc?.()
+    vi.resetModules()
+    vi.doMock('perf_hooks', () => ({
+      PerformanceObserver: class {
+        constructor(callback: typeof deliver) {
+          deliver = callback
+        }
+        observe = observe
+        disconnect = vi.fn()
+      }
+    }))
 
-    // The performance observer delivers entries on a later turn of the event loop.
-    await new Promise(resolve => setTimeout(resolve, 20))
+    try {
+      const {createMetrics: createMetricsWithMockedObserver} = await import('./metrics')
+      const metrics = createMetricsWithMockedObserver({activeRenders: () => 0, queueDepth: () => 0})
 
-    expect(metrics.render()).toContain('nodejs_gc_duration_seconds_count')
+      expect(observe).toHaveBeenCalledWith({entryTypes: ['gc']})
 
-    metrics.close()
+      // durations arrive in milliseconds
+      deliver?.({getEntries: () => [{duration: 7}]})
+      const output = metrics.render()
+
+      expect(output).toContain('nodejs_gc_duration_seconds_bucket{le="0.005"} 0')
+      expect(output).toContain('nodejs_gc_duration_seconds_bucket{le="0.01"} 1')
+      expect(output).toContain('nodejs_gc_duration_seconds_bucket{le="+Inf"} 1')
+      expect(output).toContain('nodejs_gc_duration_seconds_sum 0.007')
+      expect(output).toContain('nodejs_gc_duration_seconds_count 1')
+
+      metrics.close()
+    } finally {
+      vi.doUnmock('perf_hooks')
+      vi.resetModules()
+    }
   })
 
   it('can be closed more than once', () => {
